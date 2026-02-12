@@ -11,9 +11,11 @@ class XeroTenantMiddleware
 {
     private $xeroService;
 
-    public function __construct(XeroService $xeroService)
+    public function __construct()
     {
-        $this->xeroService = $xeroService;
+        $request = request();
+        dd($request->headers->all());
+        // $this->xeroService = $xeroService;
     }
 
     public function handle(Request $request, Closure $next)
