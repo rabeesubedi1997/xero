@@ -18,7 +18,7 @@ class AccountController extends Controller
     public function index(Request $request): JsonResponse
     {
         try {
-            $tenantId = $request->header('Xero-Tenant-ID');
+            $tenantId = $request->XeroTenantID;
             if (!$tenantId) {
                 return response()->json([
                     'success' => false,
