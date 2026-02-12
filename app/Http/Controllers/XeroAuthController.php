@@ -88,14 +88,32 @@ class XeroAuthController extends Controller
             $tokens = \App\Models\XeroToken::all();
             $tokenCount = $tokens->count();
             
+            // Revoke tokens from Xero for each tenant
+            foreach ($tokens as $token) {
+                try {
+                    $client = new \GuzzleHttp\Client();
+                    $client->post('https://identity.xero.com/connect/revocation', [
+                        'form_params' => [
+                            'token' => $token->access_token,
+                            'client_id' => config('services.xero.client_id'),
+                            'client_secret' => config('services.xero.client_secret'),
+                        ]
+                    ]);
+                } catch (\Exception $e) {
+                    // Continue even if revocation fails
+                    \Log::warning('Failed to revoke token for tenant ' . $token->tenant_id . ': ' . $e->getMessage());
+                }
+            }
+            
             // Clear all tokens from database
             \App\Models\XeroToken::truncate();
 
             return response()->json([
                 'success' => true,
-                'message' => 'Successfully logged out from Xero',
+                'message' => 'Successfully logged out from Xero (local and remote)',
                 'tokens_cleared' => $tokenCount,
-                'cleared_tenants' => $tokens->pluck('tenant_name')->toArray()
+                'cleared_tenants' => $tokens->pluck('tenant_name')->toArray(),
+                'xero_revoked' => true
             ]);
         } catch (\Exception $e) {
             return response()->json([
