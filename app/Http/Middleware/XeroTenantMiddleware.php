@@ -26,6 +26,7 @@ class XeroTenantMiddleware
         }
 
         $tenantId = $request->header('Xero-Tenant-ID');
+        dump($tenantId);
         if (!$tenantId) {
             return response()->json([
                 'success' => false,
