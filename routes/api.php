@@ -18,9 +18,9 @@ use App\Http\Controllers\AccountController;
 Route::get('/test', function (Request $request) {
 
     $headers = $request->headers->all();
- 
+    echo "test";
     dd($headers);
-
+ 
 });
 
 Route::middleware('api')->group(function () {
