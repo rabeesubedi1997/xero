@@ -26,25 +26,39 @@ class XeroTenantMiddleware
         }
 
         $tenantId = $request->header('Xero-Tenant-ID');
-        dump($request);
-        if (!$tenantId) {
+        
+        // Debug: Log all headers for troubleshooting
+        \Log::info('XeroTenantMiddleware - All Headers:', [
+            'all_headers' => $request->headers->all(),
+            'xero_tenant_id' => $tenantId,
+            'authorization' => $request->header('authorization')
+        ]);
+        
+        if (!$tenantId || $tenantId === 'null') {
             return response()->json([
                 'success' => false,
-                'message' => 'Xero-Tenant-ID header is required'
+                'message' => 'Xero-Tenant-ID header is required and cannot be null',
+                'debug' => [
+                    'received_headers' => $request->headers->all(),
+                    'tenant_id_value' => $tenantId
+                ]
             ], 400);
         }
-
+        
         try {
             $tenants = $this->xeroService->getTenants();
-            dump($tenants);
             $validTenant = collect($tenants)->first(function ($tenant) use ($tenantId) {
                 return $tenant['tenantId'] === $tenantId;
             });
-            dd($validTenant,$tenantId);
+
             if (!$validTenant) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Invalid or unauthorized tenant ID'
+                    'message' => 'Invalid or unauthorized tenant ID',
+                    'debug' => [
+                        'received_tenant_id' => $tenantId,
+                        'available_tenants' => $tenants
+                    ]
                 ], 403);
             }
 
@@ -54,7 +68,11 @@ class XeroTenantMiddleware
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Tenant validation failed: ' . $e->getMessage()
+                'message' => 'Tenant validation failed: ' . $e->getMessage(),
+                'debug' => [
+                    'tenant_id' => $tenantId,
+                    'error' => $e->getMessage()
+                ]
             ], 500);
         }
     }
