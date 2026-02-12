@@ -89,16 +89,30 @@ class XeroAuthController extends Controller
             $tokenCount = $tokens->count();
             
             // Revoke tokens from Xero for each tenant
+            $revokedTenants = [];
             foreach ($tokens as $token) {
                 try {
                     $client = new \GuzzleHttp\Client();
-                    $client->post('https://identity.xero.com/connect/revocation', [
+                    $response = $client->post('https://identity.xero.com/connect/revocation', [
                         'form_params' => [
                             'token' => $token->access_token,
                             'client_id' => config('services.xero.client_id'),
                             'client_secret' => config('services.xero.client_secret'),
+                            'token_type_hint' => 'access_token'
                         ]
                     ]);
+                    
+                    // Also revoke refresh token
+                    $client->post('https://identity.xero.com/connect/revocation', [
+                        'form_params' => [
+                            'token' => $token->refresh_token,
+                            'client_id' => config('services.xero.client_id'),
+                            'client_secret' => config('services.xero.client_secret'),
+                            'token_type_hint' => 'refresh_token'
+                        ]
+                    ]);
+                    
+                    $revokedTenants[] = $token->tenant_name;
                 } catch (\Exception $e) {
                     // Continue even if revocation fails
                     \Log::warning('Failed to revoke token for tenant ' . $token->tenant_id . ': ' . $e->getMessage());
@@ -110,10 +124,12 @@ class XeroAuthController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Successfully logged out from Xero (local and remote)',
+                'message' => 'Successfully logged out from Xero and unlinked app',
                 'tokens_cleared' => $tokenCount,
                 'cleared_tenants' => $tokens->pluck('tenant_name')->toArray(),
-                'xero_revoked' => true
+                'revoked_tenants' => $revokedTenants,
+                'xero_unlinked' => true,
+                'next_step' => 'Please manually revoke app permissions at: https://login.xero.com/ > Profile > My Apps'
             ]);
         } catch (\Exception $e) {
             return response()->json([
