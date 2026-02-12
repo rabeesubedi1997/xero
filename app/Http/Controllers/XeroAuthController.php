@@ -84,17 +84,57 @@ class XeroAuthController extends Controller
     public function logout(): JsonResponse
     {
         try {
+            // Get all tokens before deletion for response
+            $tokens = \App\Models\XeroToken::all();
+            $tokenCount = $tokens->count();
+            
             // Clear all tokens from database
             \App\Models\XeroToken::truncate();
 
             return response()->json([
                 'success' => true,
-                'message' => 'Successfully logged out from Xero'
+                'message' => 'Successfully logged out from Xero',
+                'tokens_cleared' => $tokenCount,
+                'cleared_tenants' => $tokens->pluck('tenant_name')->toArray()
             ]);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
                 'message' => 'Logout failed: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Get token status for monitoring
+     */
+    public function tokenStatus(): JsonResponse
+    {
+        try {
+            $tokens = \App\Models\XeroToken::all();
+            $tokenInfo = [];
+
+            foreach ($tokens as $token) {
+                $tokenInfo[] = [
+                    'tenant_id' => $token->tenant_id,
+                    'tenant_name' => $token->tenant_name,
+                    'expires_at' => $token->expires_at,
+                    'is_expired' => $token->isExpired(),
+                    'time_until_expiry' => $token->expires_at ? $token->expires_at->diffForHumans(now(), true) : null,
+                    'created_at' => $token->created_at,
+                    'updated_at' => $token->updated_at
+                ];
+            }
+
+            return response()->json([
+                'success' => true,
+                'total_tokens' => count($tokenInfo),
+                'tokens' => $tokenInfo
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to get token status: ' . $e->getMessage()
             ], 500);
         }
     }

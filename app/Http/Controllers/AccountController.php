@@ -37,16 +37,35 @@ class AccountController extends Controller
     {
         try {
             $tenantId = $request->input('xero_tenant_id');
+            
+            // Get token info before API call to show database usage
+            $token = \App\Models\XeroToken::findByTenantId($tenantId);
+            $tokenInfo = null;
+            
+            if ($token) {
+                $tokenInfo = [
+                    'tenant_id' => $token->tenant_id,
+                    'tenant_name' => $token->tenant_name,
+                    'is_expired' => $token->isExpired(),
+                    'expires_at' => $token->expires_at,
+                    'time_until_expiry' => $token->expires_at ? $token->expires_at->diffForHumans(now(), true) : null,
+                    'will_refresh' => $token->isExpired()
+                ];
+            }
+            
             $account = $this->xeroService->getAccount($tenantId, $accountId);
 
             return response()->json([
                 'success' => true,
-                'data' => $account->getAccounts()[0]
+                'message' => 'Account retrieved successfully',
+                'data' => $account->getAccounts()[0],
+                'token_info' => $tokenInfo,
+                'database_token_used' => $tokenInfo !== null
             ]);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to fetch account: ' . $e->getMessage()
+                'message' => 'Failed to retrieve account: ' . $e->getMessage()
             ], 500);
         }
     }

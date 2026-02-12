@@ -22,6 +22,7 @@ Route::middleware('api')->group(function () {
         Route::get('/connect', [XeroAuthController::class, 'connect']);
         Route::get('/callback', [XeroAuthController::class, 'callback']);
         Route::get('/tenants', [XeroAuthController::class, 'tenants']);
+        Route::get('/token-status', [XeroAuthController::class, 'tokenStatus']);
         Route::post('/logout', [XeroAuthController::class, 'logout']);
     });
 
