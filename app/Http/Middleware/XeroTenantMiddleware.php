@@ -39,7 +39,7 @@ class XeroTenantMiddleware
             $validTenant = collect($tenants)->first(function ($tenant) use ($tenantId) {
                 return $tenant['tenantId'] === $tenantId;
             });
-            dd($validTenant);
+            dd($validTenant,$tenantId);
             if (!$validTenant) {
                 return response()->json([
                     'success' => false,
