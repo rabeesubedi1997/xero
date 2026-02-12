@@ -28,7 +28,7 @@ Route::middleware('api')->group(function () {
 
     // Xero Accounts API Routes
     Route::middleware('xero.tenant')->prefix('accounts')->group(function () {
-        Route::get('/', [AccountController::class, 'index']);
+        Route::get('/in', [AccountController::class, 'index']);
         Route::get('/{accountId}', [AccountController::class, 'show']);
         Route::post('/', [AccountController::class, 'store']);
         Route::put('/{accountId}', [AccountController::class, 'update']);
