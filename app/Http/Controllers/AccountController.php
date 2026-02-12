@@ -19,7 +19,7 @@ class AccountController extends Controller
     {
         try {
             $tenantId = $request->xero_tenant_id;
-            dump($tenantId);
+            dd($tenantId);
             $accounts = $this->xeroService->getAccounts($tenantId);
 
             return response()->json([
