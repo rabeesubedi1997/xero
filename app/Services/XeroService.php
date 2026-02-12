@@ -115,7 +115,6 @@ class XeroService
         $token = $this->getValidToken($tenantId);
         
         $this->config->setAccessToken($token->access_token);
-        $this->config->setTenantId($tenantId);
         
         return new AccountingApi(new Client(), $this->config);
     }
