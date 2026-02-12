@@ -17,27 +17,28 @@ class AccountController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        try {
+        // try {
             $tenantId = $request->XeroTenantID;
-            if (!$tenantId) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Xero-Tenant-ID header is required'
-                ], 400);
-            }
+            dd($tenantId);
+            // if (!$tenantId) {
+            //     return response()->json([
+            //         'success' => false,
+            //         'message' => 'Xero-Tenant-ID header is required'
+            //     ], 400);
+            // }
             
-            $accounts = $this->xeroService->getAccounts($tenantId);
+            // $accounts = $this->xeroService->getAccounts($tenantId);
 
-            return response()->json([
-                'success' => true,
-                'data' => $accounts->getAccounts()
-            ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to fetch accounts: ' . $e->getMessage()
-            ], 500);
-        }
+            // return response()->json([
+            //     'success' => true,
+            //     'data' => $accounts->getAccounts()
+            // ]);
+        // } catch (\Exception $e) {
+        //     return response()->json([
+        //         'success' => false,
+        //         'message' => 'Failed to fetch accounts: ' . $e->getMessage()
+        //     ], 500);
+        // }
     }
 
     public function show(Request $request, $accountId): JsonResponse
