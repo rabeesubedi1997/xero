@@ -35,10 +35,11 @@ class XeroTenantMiddleware
 
         try {
             $tenants = $this->xeroService->getTenants();
+            dump($tenants);
             $validTenant = collect($tenants)->first(function ($tenant) use ($tenantId) {
                 return $tenant['tenantId'] === $tenantId;
             });
-
+            dd($validTenant);
             if (!$validTenant) {
                 return response()->json([
                     'success' => false,
