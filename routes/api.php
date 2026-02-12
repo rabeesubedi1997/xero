@@ -18,8 +18,8 @@ use App\Http\Controllers\AccountController;
 Route::get('/test', function (Request $request) {
 
     $headers = $request->headers->all();
-    echo "test";
-    dd($headers);
+    echo "test1";
+    dd($_SERVER);
  
 });
 
