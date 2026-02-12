@@ -23,7 +23,7 @@ Route::middleware('api')->group(function () {
         Route::get('/callback', [XeroAuthController::class, 'callback']);
         Route::get('/tenants', [XeroAuthController::class, 'tenants']);
         Route::get('/token-status', [XeroAuthController::class, 'tokenStatus']);
-        Route::post('/logout', [XeroAuthController::class, 'logout']);
+        Route::match(['get', 'post'], '/logout', [XeroAuthController::class, 'logout']);
     });
 
     // Xero Accounts API Routes
