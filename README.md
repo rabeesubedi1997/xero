@@ -1,59 +1,215 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Laravel Xero API Integration
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+A Laravel 11 project that provides RESTful API endpoints for managing Xero accounts with OAuth 2.0 authentication and multi-tenant support.
 
-## About Laravel
+## Features
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+- OAuth 2.0 authentication with Xero
+- Multi-tenant support for multiple Xero organizations
+- Full CRUD operations for Xero accounts
+- Automatic token refresh
+- RESTful API design
+- Session-based token storage
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+## Prerequisites
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+- PHP 8.2+
+- Composer
+- Xero Developer Account with Client ID and Client Secret
 
-## Learning Laravel
+## Installation
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework. You can also check out [Laravel Learn](https://laravel.com/learn), where you will be guided through building a modern Laravel application.
+1. Clone the repository
+2. Install dependencies:
+   ```bash
+   composer install
+   ```
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+3. Copy environment file:
+   ```bash
+   cp .env.example .env
+   ```
 
-## Laravel Sponsors
+4. Generate application key:
+   ```bash
+   php artisan key:generate
+   ```
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+5. Configure your Xero credentials in `.env`:
+   ```env
+   XERO_CLIENT_ID=your_xero_client_id
+   XERO_CLIENT_SECRET=your_xero_client_secret
+   XERO_REDIRECT_URI=http://localhost:8000/oauth/callback
+   XERO_SCOPE="accounting.transactions accounting.settings accounting.contacts accounting.reports.read offline_access"
+   ```
 
-### Premium Partners
+6. Start the development server:
+   ```bash
+   php artisan serve
+   ```
 
-- **[Vehikl](https://vehikl.com)**
-- **[Tighten Co.](https://tighten.co)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Redberry](https://redberry.international/laravel-development)**
-- **[Active Logic](https://activelogic.com)**
+## API Endpoints
 
-## Contributing
+### Authentication
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+- `GET /api/oauth/connect` - Get Xero authorization URL
+- `GET /api/oauth/callback` - Handle OAuth callback
+- `GET /api/oauth/tenants` - Get available tenants
+- `POST /api/oauth/logout` - Logout from Xero
 
-## Code of Conduct
+### Accounts Management
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+All account endpoints require:
+- `Xero-Tenant-ID` header with the tenant ID
+- Valid Xero authentication session
 
-## Security Vulnerabilities
+- `GET /api/accounts` - List all accounts
+- `GET /api/accounts/{id}` - Get specific account
+- `POST /api/accounts` - Create new account
+- `PUT /api/accounts/{id}` - Update account
+- `DELETE /api/accounts/{id}` - Delete account
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+## Usage Example
+
+### 1. Authenticate with Xero
+
+```bash
+# Get authorization URL
+curl -X GET http://localhost:8000/api/oauth/connect
+
+# Response:
+{
+    "success": true,
+    "auth_url": "https://login.xero.com/identity/connect/authorize?response_type=code&client_id=your_client_id&redirect_uri=..."
+}
+```
+
+### 2. Handle OAuth Callback
+
+After user authorizes, Xero will redirect to your callback URL with a code parameter.
+
+### 3. Get Available Tenants
+
+```bash
+curl -X GET http://localhost:8000/api/oauth/tenants
+
+# Response:
+{
+    "success": true,
+    "tenants": [
+        {
+            "tenantId": "tenant-uuid",
+            "tenantName": "My Company",
+            "tenantType": "ORGANISATION"
+        }
+    ]
+}
+```
+
+### 4. Create Account
+
+```bash
+curl -X POST http://localhost:8000/api/accounts \
+  -H "Content-Type: application/json" \
+  -H "Xero-Tenant-ID: tenant-uuid" \
+  -d '{
+    "name": "Test Bank Account",
+    "code": "090",
+    "type": "BANK",
+    "description": "Test bank account"
+  }'
+
+# Response:
+{
+    "success": true,
+    "message": "Account created successfully",
+    "data": {
+        "accountID": "account-uuid",
+        "name": "Test Bank Account",
+        "code": "090",
+        "type": "BANK",
+        "status": "ACTIVE"
+    }
+}
+```
+
+### 5. List Accounts
+
+```bash
+curl -X GET http://localhost:8000/api/accounts \
+  -H "Xero-Tenant-ID: tenant-uuid"
+
+# Response:
+{
+    "success": true,
+    "data": [
+        {
+            "accountID": "account-uuid",
+            "name": "Test Bank Account",
+            "code": "090",
+            "type": "BANK",
+            "status": "ACTIVE"
+        }
+    ]
+}
+```
+
+## Account Types
+
+Supported account types:
+- `BANK` - Bank accounts
+- `CURRENT` - Current assets
+- `CURRLIAB` - Current liabilities
+- `DEPRECIATN` - Depreciation
+- `EQUITY` - Equity accounts
+- `EXPENSE` - Expense accounts
+- `INVENTORY` - Inventory
+- `LIABILITY` - Liability accounts
+- `NONCURRENT` - Non-current assets
+- `OTHERINCOME` - Other income
+- `OVERHEADS` - Overheads
+- `PAYGLIABILITY` - PAYG liability
+- `PREPAYMENT` - Prepayments
+- `REVENUE` - Revenue accounts
+- `SALES` - Sales accounts
+- `TAX` - Tax accounts
+- `TERMLIAB` - Term liabilities
+
+## Error Handling
+
+All API endpoints return consistent error responses:
+
+```json
+{
+    "success": false,
+    "message": "Error description"
+}
+```
+
+Common HTTP status codes:
+- `200` - Success
+- `201` - Created
+- `400` - Bad Request
+- `401` - Unauthorized
+- `403` - Forbidden
+- `500` - Internal Server Error
+
+## Security Notes
+
+- Tokens are stored in session (for development)
+- In production, consider using encrypted storage
+- Always validate tenant access before operations
+- Implement proper rate limiting
+- Use HTTPS in production
+
+## Development
+
+This project uses:
+- Laravel 11
+- calcinai/xero-php SDK
+- Session-based authentication
+- RESTful API design
 
 ## License
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+This project is open-sourced software licensed under the MIT license.

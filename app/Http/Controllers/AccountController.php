@@ -1,0 +1,186 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Services\XeroService;
+use Illuminate\Http\Request;
+use Illuminate\Http\JsonResponse;
+
+class AccountController extends Controller
+{
+    private $xeroService;
+
+    public function __construct(XeroService $xeroService)
+    {
+        $this->xeroService = $xeroService;
+    }
+
+    public function index(Request $request): JsonResponse
+    {
+        try {
+            $tenantId = $request->input('xero_tenant_id');
+            $accounts = $this->xeroService->getAccounts($tenantId);
+
+            return response()->json([
+                'success' => true,
+                'data' => $accounts->getAccounts()
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to fetch accounts: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function show(Request $request, $accountId): JsonResponse
+    {
+        try {
+            $tenantId = $request->input('xero_tenant_id');
+            $account = $this->xeroService->getAccount($tenantId, $accountId);
+
+            return response()->json([
+                'success' => true,
+                'data' => $account->getAccounts()[0]
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to fetch account: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function store(Request $request): JsonResponse
+    {
+        try {
+            $tenantId = $request->input('xero_tenant_id');
+            $validated = $request->validate([
+                'name' => 'required|string|max:255',
+                'code' => 'required|string|max:10',
+                'type' => 'required|string|in:BANK,CURRENT,CURRLIAB,DEPRECIATN,EQUITY,EXPENSE,INVENTORY,LIABILITY,NONCURRENT,OTHERINCOME,OVERHEADS,PAYGLIABILITY,PREPAYMENT,REVENUE,SALES,TAX,TERMLIAB',
+                'description' => 'nullable|string|max:4000',
+                'tax_type' => 'nullable|string|max:50',
+                'enable_payments_to_account' => 'boolean',
+                'show_in_expense_claims' => 'boolean',
+            ]);
+
+            $account = new \XeroAPI\XeroPHP\Models\Accounting\Account();
+            $account->setName($validated['name']);
+            $account->setCode($validated['code']);
+            $account->setType($validated['type']);
+            
+            if (isset($validated['description'])) {
+                $account->setDescription($validated['description']);
+            }
+            
+            if (isset($validated['tax_type'])) {
+                $account->setTaxType($validated['tax_type']);
+            }
+            
+            if (isset($validated['enable_payments_to_account'])) {
+                $account->setEnablePaymentsToAccount($validated['enable_payments_to_account']);
+            }
+            
+            if (isset($validated['show_in_expense_claims'])) {
+                $account->setShowInExpenseClaims($validated['show_in_expense_claims']);
+            }
+
+            $result = $this->xeroService->createAccount($tenantId, $account);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Account created successfully',
+                'data' => $result->getAccounts()[0]
+            ], 201);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to create account: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function update(Request $request, $accountId): JsonResponse
+    {
+        try {
+            $tenantId = $request->input('xero_tenant_id');
+            $validated = $request->validate([
+                'name' => 'sometimes|required|string|max:255',
+                'code' => 'sometimes|required|string|max:10',
+                'type' => 'sometimes|required|string|in:BANK,CURRENT,CURRLIAB,DEPRECIATN,EQUITY,EXPENSE,INVENTORY,LIABILITY,NONCURRENT,OTHERINCOME,OVERHEADS,PAYGLIABILITY,PREPAYMENT,REVENUE,SALES,TAX,TERMLIAB',
+                'description' => 'nullable|string|max:4000',
+                'tax_type' => 'nullable|string|max:50',
+                'enable_payments_to_account' => 'boolean',
+                'show_in_expense_claims' => 'boolean',
+                'status' => 'sometimes|required|string|in:ACTIVE,ARCHIVED',
+            ]);
+
+            $account = new \XeroAPI\XeroPHP\Models\Accounting\Account();
+            $account->setAccountID($accountId);
+            
+            if (isset($validated['name'])) {
+                $account->setName($validated['name']);
+            }
+            
+            if (isset($validated['code'])) {
+                $account->setCode($validated['code']);
+            }
+            
+            if (isset($validated['type'])) {
+                $account->setType($validated['type']);
+            }
+            
+            if (isset($validated['description'])) {
+                $account->setDescription($validated['description']);
+            }
+            
+            if (isset($validated['tax_type'])) {
+                $account->setTaxType($validated['tax_type']);
+            }
+            
+            if (isset($validated['enable_payments_to_account'])) {
+                $account->setEnablePaymentsToAccount($validated['enable_payments_to_account']);
+            }
+            
+            if (isset($validated['show_in_expense_claims'])) {
+                $account->setShowInExpenseClaims($validated['show_in_expense_claims']);
+            }
+            
+            if (isset($validated['status'])) {
+                $account->setStatus($validated['status']);
+            }
+
+            $result = $this->xeroService->updateAccount($tenantId, $accountId, $account);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Account updated successfully',
+                'data' => $result->getAccounts()[0]
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to update account: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function destroy(Request $request, $accountId): JsonResponse
+    {
+        try {
+            $tenantId = $request->input('xero_tenant_id');
+            $this->xeroService->deleteAccount($tenantId, $accountId);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Account deleted successfully'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to delete account: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+}
