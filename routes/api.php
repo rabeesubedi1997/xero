@@ -15,6 +15,13 @@ use App\Http\Controllers\AccountController;
 | be assigned to the "api" middleware group. Make something great!
 |
 */
+Route::get('/test', function (Request $request) {
+
+    $headers = $request->headers->all();
+ 
+    dd($headers);
+
+});
 
 Route::middleware('api')->group(function () {
     // Xero Authentication Routes
@@ -34,11 +41,4 @@ Route::middleware('api')->group(function () {
         Route::put('/{accountId}', [AccountController::class, 'update']);
         Route::delete('/{accountId}', [AccountController::class, 'destroy']);
     });
-    Route::get('/test', function (Request $request) {
-
-    $headers = $request->headers->all();
- 
-    dd($headers);
-
-});
 });
