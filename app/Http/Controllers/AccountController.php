@@ -18,7 +18,8 @@ class AccountController extends Controller
     public function index(Request $request): JsonResponse
     {
         try {
-            $tenantId = $request->input('xero_tenant_id');
+            $tenantId = $request->xero_tenant_id;
+            dump($tenantId);
             $accounts = $this->xeroService->getAccounts($tenantId);
 
             return response()->json([
