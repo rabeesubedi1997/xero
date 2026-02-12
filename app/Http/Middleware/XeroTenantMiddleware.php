@@ -18,6 +18,7 @@ class XeroTenantMiddleware
 
     public function handle(Request $request, Closure $next)
     {
+        dd($request->headers->all());
         if (!$this->xeroService->isAuthenticated()) {
             return response()->json([
                 'success' => false,
