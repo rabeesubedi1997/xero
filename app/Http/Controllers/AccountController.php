@@ -17,27 +17,39 @@ class AccountController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        // try {
-            $tenantId = $request->xero_tenant_id;
-            dd($tenantId);
+        try {
+            $tenantId = $request->header('Xero-Tenant-ID');
+            if (!$tenantId) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Xero-Tenant-ID header is required'
+                ], 400);
+            }
+            
             $accounts = $this->xeroService->getAccounts($tenantId);
 
             return response()->json([
                 'success' => true,
                 'data' => $accounts->getAccounts()
             ]);
-        // } catch (\Exception $e) {
-        //     return response()->json([
-        //         'success' => false,
-        //         'message' => 'Failed to fetch accounts: ' . $e->getMessage()
-        //     ], 500);
-        // }
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to fetch accounts: ' . $e->getMessage()
+            ], 500);
+        }
     }
 
     public function show(Request $request, $accountId): JsonResponse
     {
         try {
-            $tenantId = $request->input('xero_tenant_id');
+            $tenantId = $request->header('Xero-Tenant-ID');
+            if (!$tenantId) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Xero-Tenant-ID header is required'
+                ], 400);
+            }
             
             // Get token info before API call to show database usage
             $token = \App\Models\XeroToken::findByTenantId($tenantId);
@@ -124,7 +136,14 @@ class AccountController extends Controller
     public function update(Request $request, $accountId): JsonResponse
     {
         try {
-            $tenantId = $request->input('xero_tenant_id');
+            $tenantId = $request->header('Xero-Tenant-ID');
+            if (!$tenantId) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Xero-Tenant-ID header is required'
+                ], 400);
+            }
+            
             $validated = $request->validate([
                 'name' => 'sometimes|required|string|max:255',
                 'code' => 'sometimes|required|string|max:10',
@@ -133,7 +152,7 @@ class AccountController extends Controller
                 'tax_type' => 'nullable|string|max:50',
                 'enable_payments_to_account' => 'boolean',
                 'show_in_expense_claims' => 'boolean',
-                'status' => 'sometimes|required|string|in:ACTIVE,ARCHIVED',
+                'status' => 'sometimes|required|string|in:ACTIVE,ARCHIVED'
             ]);
 
             $account = new \XeroAPI\XeroPHP\Models\Accounting\Account();
@@ -189,7 +208,14 @@ class AccountController extends Controller
     public function destroy(Request $request, $accountId): JsonResponse
     {
         try {
-            $tenantId = $request->input('xero_tenant_id');
+            $tenantId = $request->header('Xero-Tenant-ID');
+            if (!$tenantId) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Xero-Tenant-ID header is required'
+                ], 400);
+            }
+            
             $this->xeroService->deleteAccount($tenantId, $accountId);
 
             return response()->json([
