@@ -11,16 +11,13 @@ class XeroTenantMiddleware
 {
     private $xeroService;
 
-    public function __construct()
+    public function __construct(XeroService $xeroService)
     {
-        $request = request();
-        dd($request->headers->all());
-        // $this->xeroService = $xeroService;
+        $this->xeroService = $xeroService;
     }
 
     public function handle(Request $request, Closure $next)
     {
-        dd($request->headers->all());
         if (!$this->xeroService->isAuthenticated()) {
             return response()->json([
                 'success' => false,
