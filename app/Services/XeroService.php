@@ -119,85 +119,62 @@ class XeroService
         return new AccountingApi(new Client(), $this->config);
     }
 
-    public function getAccounts($tenantId)
+    /**
+     * Global wrapper for Xero API calls with automatic token refresh
+     */
+    private function executeWithRefresh($tenantId, callable $apiCall)
     {
-        $accountingApi = $this->getAccountingApi($tenantId);
-        
         try {
-            return $accountingApi->getAccounts($tenantId);
+            return $apiCall();
         } catch (Exception $e) {
             if ($e->getCode() === 401) {
-                // Try refresh token and retry
+                // Refresh token and retry
                 $this->refreshAccessToken($tenantId);
-                $accountingApi = $this->getAccountingApi($tenantId);
-                return $accountingApi->getAccounts($tenantId);
+                // Don't reassign accountingApi, just retry the call
+                return $apiCall();
             }
             throw $e;
         }
+    }
+
+    public function getAccounts($tenantId)
+    {
+        return $this->executeWithRefresh($tenantId, function() use ($tenantId) {
+            $accountingApi = $this->getAccountingApi($tenantId);
+            return $accountingApi->getAccounts($tenantId);
+        });
     }
 
     public function getAccount($tenantId, $accountId)
     {
-        $accountingApi = $this->getAccountingApi($tenantId);
-        
-        try {
+        return $this->executeWithRefresh($tenantId, function() use ($tenantId, $accountId) {
+            $accountingApi = $this->getAccountingApi($tenantId);
             return $accountingApi->getAccount($tenantId, $accountId);
-        } catch (Exception $e) {
-            if ($e->getCode() === 401) {
-                $this->refreshAccessToken($tenantId);
-                $accountingApi = $this->getAccountingApi($tenantId);
-                return $accountingApi->getAccount($tenantId, $accountId);
-            }
-            throw $e;
-        }
+        });
     }
 
     public function createAccount($tenantId, $accountData)
     {
-        $accountingApi = $this->getAccountingApi($tenantId);
-        
-        try {
+        return $this->executeWithRefresh($tenantId, function() use ($tenantId, $accountData) {
+            $accountingApi = $this->getAccountingApi($tenantId);
             return $accountingApi->createAccount($tenantId, $accountData);
-        } catch (Exception $e) {
-            if ($e->getCode() === 401) {
-                $this->refreshAccessToken($tenantId);
-                $accountingApi = $this->getAccountingApi($tenantId);
-                return $accountingApi->createAccount($tenantId, $accountData);
-            }
-            throw $e;
-        }
+        });
     }
 
     public function updateAccount($tenantId, $accountId, $accountData)
     {
-        $accountingApi = $this->getAccountingApi($tenantId);
-        
-        try {
+        return $this->executeWithRefresh($tenantId, function() use ($tenantId, $accountId, $accountData) {
+            $accountingApi = $this->getAccountingApi($tenantId);
             return $accountingApi->updateAccount($tenantId, $accountId, $accountData);
-        } catch (Exception $e) {
-            if ($e->getCode() === 401) {
-                $this->refreshAccessToken($tenantId);
-                $accountingApi = $this->getAccountingApi($tenantId);
-                return $accountingApi->updateAccount($tenantId, $accountId, $accountData);
-            }
-            throw $e;
-        }
+        });
     }
 
     public function deleteAccount($tenantId, $accountId)
     {
-        $accountingApi = $this->getAccountingApi($tenantId);
-        
-        try {
+        return $this->executeWithRefresh($tenantId, function() use ($tenantId, $accountId) {
+            $accountingApi = $this->getAccountingApi($tenantId);
             return $accountingApi->deleteAccount($tenantId, $accountId);
-        } catch (Exception $e) {
-            if ($e->getCode() === 401) {
-                $this->refreshAccessToken($tenantId);
-                $accountingApi = $this->getAccountingApi($tenantId);
-                return $accountingApi->deleteAccount($tenantId, $accountId);
-            }
-            throw $e;
-        }
+        });
     }
 
     public function isAuthenticated()

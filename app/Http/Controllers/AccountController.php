@@ -19,7 +19,7 @@ class AccountController extends Controller
     {
         try {
             $tenantId = $request->header('Xero-Tenant-ID');;
-        dump($tenantId);
+        // dump($tenantId);
             if (!$tenantId) {
                 return response()->json([
                     'success' => false,
