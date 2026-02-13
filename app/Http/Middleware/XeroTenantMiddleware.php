@@ -25,22 +25,32 @@ class XeroTenantMiddleware
             ], 401);
         }
 
+        // Try header first, then URL parameter as fallback
         $tenantId = $request->header('Xero-Tenant-ID');
         
-        // Debug: Log all headers for troubleshooting
-        \Log::info('XeroTenantMiddleware - All Headers:', [
+        // Fallback to URL parameter if header is not provided
+        if (!$tenantId) {
+            $tenantId = $request->input('Xero-Tenant-ID');
+        }
+        
+        // Debug: Log all sources for troubleshooting
+        \Log::info('XeroTenantMiddleware - Tenant ID Sources:', [
+            'header_value' => $request->header('Xero-Tenant-ID'),
+            'url_parameter' => $request->input('Xero-Tenant-ID'),
+            'final_tenant_id' => $tenantId,
             'all_headers' => $request->headers->all(),
-            'xero_tenant_id' => $tenantId,
-            'authorization' => $request->header('authorization')
+            'all_query_params' => $request->query()
         ]);
         
         if (!$tenantId || $tenantId === 'null') {
             return response()->json([
                 'success' => false,
-                'message' => 'Xero-Tenant-ID header is required and cannot be null',
+                'message' => 'Xero-Tenant-ID header or URL parameter is required and cannot be null',
                 'debug' => [
                     'received_headers' => $request->headers->all(),
-                    'tenant_id_value' => $tenantId
+                    'url_parameters' => $request->query(),
+                    'header_value' => $request->header('Xero-Tenant-ID'),
+                    'url_parameter_value' => $request->input('Xero-Tenant-ID')
                 ]
             ], 400);
         }

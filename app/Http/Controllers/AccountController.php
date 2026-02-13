@@ -18,12 +18,20 @@ class AccountController extends Controller
     public function index(Request $request): JsonResponse
     {
         try {
-            $tenantId = $request->header('Xero-Tenant-ID');;
-        // dump($tenantId);
+            // Try header first, then URL parameter as fallback
+            $tenantId = $request->header('Xero-Tenant-ID');
+            if (!$tenantId) {
+                $tenantId = $request->input('Xero-Tenant-ID');
+            }
+            
             if (!$tenantId) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Xero-Tenant-ID header is required'
+                    'message' => 'Xero-Tenant-ID header or URL parameter is required',
+                    'debug' => [
+                        'header_value' => $request->header('Xero-Tenant-ID'),
+                        'url_parameter_value' => $request->input('Xero-Tenant-ID')
+                    ]
                 ], 400);
             }
             
