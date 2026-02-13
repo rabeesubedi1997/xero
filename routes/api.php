@@ -50,7 +50,18 @@ Route::middleware('api')->group(function () {
     $tokens = \App\Models\XeroToken::all();
     $firstToken = \App\Models\XeroToken::first();
     
-    dd([
+    // Generate auth URL if no tokens exist
+    $authUrl = null;
+    if ($tokens->isEmpty()) {
+        $authUrl = "https://login.xero.com/identity/connect/authorize?" . http_build_query([
+            'response_type' => 'code',
+            'client_id' => config('services.xero.client_id'),
+            'redirect_uri' => config('services.xero.redirect_uri'),
+            'scope' => config('services.xero.scope')
+        ]);
+    }
+    
+    return response()->json([
         'headers' => $headers,
         'url_params' => $urlParams,
         'xero_tenant_id_header' => $request->header('Xero-Tenant-ID'),
@@ -62,7 +73,14 @@ Route::middleware('api')->group(function () {
             'expires_at' => $firstToken->expires_at,
             'is_expired' => $firstToken->isExpired()
         ] : null,
-        'all_tenant_ids' => $tokens->pluck('tenant_id')->toArray()
+        'all_tenant_ids' => $tokens->pluck('tenant_id')->toArray(),
+        'needs_auth' => $tokens->isEmpty(),
+        'auth_url' => $authUrl,
+        'next_steps' => $tokens->isEmpty() ? [
+            '1. Visit: ' . $authUrl,
+            '2. Complete OAuth flow',
+            '3. Tokens will be stored automatically'
+        ] : 'Tokens exist - API ready'
     ]);
 
 });
