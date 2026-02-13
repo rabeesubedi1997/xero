@@ -30,34 +30,41 @@ class UserController extends Controller
                 'method' => $request->method(),
                 'url' => $request->fullUrl()
             ]);
-            
-            // Try header first, then URL parameter as fallback (case-insensitive)
-            $tenantId = $request->header('Xero-Tenant-ID') 
-                        ?: $request->header('xero-tenant-id') 
-                        ?: $request->header('XERO-TENANT-ID');
-                        
+
+            // Try common header variations first, then URL parameter variations (case-insensitive)
+            $tenantId = $request->header('Xero-Tenant-ID')
+                ?: $request->header('xero-tenant-id')
+                ?: $request->header('XERO-TENANT-ID')
+                ?: $request->header('tenant_id')
+                ?: $request->header('tenantId')
+                ?: $request->header('xero_tenant_id');
+
             if (!$tenantId) {
-                $tenantId = $request->input('Xero-Tenant-ID') ?: $request->input('xero-tenant-id');
+                $tenantId = $request->input('Xero-Tenant-ID')
+                    ?: $request->input('xero-tenant-id')
+                    ?: $request->input('tenant_id')
+                    ?: $request->input('tenantId')
+                    ?: $request->input('xero_tenant_id');
             }
-            
+
             // Debug: After initial extraction
             \Log::info('UserController - After Extraction', [
                 'tenant_id' => $tenantId,
                 'is_null' => is_null($tenantId),
                 'type' => gettype($tenantId)
             ]);
-            
-            // If still no tenant ID, try to get from database (first available)
+
+            // If still no tenant ID, try to get from database (first available non-empty tenant_id)
             if (!$tenantId) {
-                $firstToken = \App\Models\XeroToken::first();
+                $firstToken = \App\Models\XeroToken::whereNotNull('tenant_id')->where('tenant_id', '!=', '')->first();
                 if ($firstToken) {
                     $tenantId = $firstToken->tenant_id;
                 }
-                
-                // Debug: Check database state
+
+                // Debug: Check database state (include other common query/header keys)
                 \Log::info('UserController - Token Search Debug', [
-                    'tenant_id_from_header' => $request->header('Xero-Tenant-ID'),
-                    'tenant_id_from_url' => $request->input('Xero-Tenant-ID'),
+                    'tenant_id_from_header' => $request->header('Xero-Tenant-ID') ?? $request->header('tenant_id'),
+                    'tenant_id_from_url' => $request->input('Xero-Tenant-ID') ?? $request->input('tenant_id'),
                     'first_token_found' => $firstToken ? true : false,
                     'first_token_data' => $firstToken ? [
                         'tenant_id' => $firstToken->tenant_id,
@@ -69,14 +76,14 @@ class UserController extends Controller
                     'all_tokens' => \App\Models\XeroToken::all()->pluck('tenant_id')->toArray()
                 ]);
             }
-            
+
             // Debug: Final tenant ID decision
             \Log::info('UserController - Final Tenant ID', [
                 'final_tenant_id' => $tenantId,
                 'is_null' => is_null($tenantId),
                 'tenant_id_type' => gettype($tenantId)
             ]);
-            
+
             if (!$tenantId) {
                 return response()->json([
                     'success' => false,
@@ -90,9 +97,9 @@ class UserController extends Controller
                     ]
                 ], 400);
             }
-            
+
             $users = $this->xeroService->getUsers($tenantId);
-            
+
             return response()->json([
                 'success' => true,
                 'data' => $users,
@@ -110,19 +117,24 @@ class UserController extends Controller
     public function show(Request $request, $userId): JsonResponse
     {
         try {
-            $tenantId = $request->header('Xero-Tenant-ID');
+            // Try common header/query variations, then DB fallback
+            $tenantId = $request->header('Xero-Tenant-ID')
+                ?: $request->header('xero-tenant-id')
+                ?: $request->header('tenant_id')
+                ?: $request->header('tenantId')
+                ?: $request->input('Xero-Tenant-ID')
+                ?: $request->input('xero-tenant-id')
+                ?: $request->input('tenant_id')
+                ?: $request->input('tenantId');
+
+            // If still no tenant ID, try to get from database (first available non-empty tenant_id)
             if (!$tenantId) {
-                $tenantId = $request->input('Xero-Tenant-ID');
-            }
-            
-            // If still no tenant ID, try to get from database (first available)
-            if (!$tenantId) {
-                $firstToken = \App\Models\XeroToken::first();
+                $firstToken = \App\Models\XeroToken::whereNotNull('tenant_id')->where('tenant_id', '!=', '')->first();
                 if ($firstToken) {
                     $tenantId = $firstToken->tenant_id;
                 }
             }
-            
+
             if (!$tenantId) {
                 return response()->json([
                     'success' => false,
@@ -130,7 +142,7 @@ class UserController extends Controller
                     'help' => 'Add ?Xero-Tenant-ID=TENANT_ID to URL or Xero-Tenant-ID header'
                 ], 400);
             }
-            
+
             $user = $this->xeroService->getUser($tenantId, $userId);
 
             return response()->json([
