@@ -23,15 +23,21 @@ class UserController extends Controller
                 'all_headers' => $request->headers->all(),
                 'all_query_params' => $request->query()->all(),
                 'header_xero_tenant_id' => $request->header('Xero-Tenant-ID'),
+                'header_xero_tenant_id_lowercase' => $request->header('xero-tenant-id'),
+                'header_xero_tenant_id_uppercase' => $request->header('XERO-TENANT-ID'),
                 'query_xero_tenant_id' => $request->input('Xero-Tenant-ID'),
+                'query_xero_tenant_id_lowercase' => $request->input('xero-tenant-id'),
                 'method' => $request->method(),
                 'url' => $request->fullUrl()
             ]);
             
-            // Try header first, then URL parameter as fallback
-            $tenantId = $request->header('Xero-Tenant-ID');
+            // Try header first, then URL parameter as fallback (case-insensitive)
+            $tenantId = $request->header('Xero-Tenant-ID') 
+                        ?: $request->header('xero-tenant-id') 
+                        ?: $request->header('XERO-TENANT-ID');
+                        
             if (!$tenantId) {
-                $tenantId = $request->input('Xero-Tenant-ID');
+                $tenantId = $request->input('Xero-Tenant-ID') ?: $request->input('xero-tenant-id');
             }
             
             // Debug: After initial extraction
