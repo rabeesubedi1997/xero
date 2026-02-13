@@ -30,6 +30,21 @@ class UserController extends Controller
                 if ($firstToken) {
                     $tenantId = $firstToken->tenant_id;
                 }
+                
+                // Debug: Check database state
+                \Log::info('UserController - Token Search Debug', [
+                    'tenant_id_from_header' => $request->header('Xero-Tenant-ID'),
+                    'tenant_id_from_url' => $request->input('Xero-Tenant-ID'),
+                    'first_token_found' => $firstToken ? true : false,
+                    'first_token_data' => $firstToken ? [
+                        'tenant_id' => $firstToken->tenant_id,
+                        'tenant_name' => $firstToken->tenant_name,
+                        'expires_at' => $firstToken->expires_at,
+                        'is_expired' => $firstToken->isExpired()
+                    ] : null,
+                    'total_tokens_count' => \App\Models\XeroToken::count(),
+                    'all_tokens' => \App\Models\XeroToken::all()->pluck('tenant_id')->toArray()
+                ]);
             }
             
             if (!$tenantId) {
