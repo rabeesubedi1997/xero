@@ -4,6 +4,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\XeroAuthController;
 use App\Http\Controllers\AccountController;
+use App\Http\Controllers\UserController;
 
 /*
 |--------------------------------------------------------------------------
@@ -33,6 +34,12 @@ Route::middleware('api')->group(function () {
         Route::post('/', [AccountController::class, 'store']);
         Route::put('/{accountId}', [AccountController::class, 'update']);
         Route::delete('/{accountId}', [AccountController::class, 'destroy']);
+    });
+
+    // Xero Users API Routes
+    Route::middleware('xero.tenant')->prefix('users')->group(function () {
+        Route::get('/', [UserController::class, 'index']);
+        Route::get('/{userId}', [UserController::class, 'show']);
     });
     Route::get('/test', function (Request $request) {
 

@@ -3,8 +3,8 @@
 namespace App\Services;
 
 use XeroAPI\XeroPHP\Api\AccountingApi;
-use XeroAPI\XeroPHP\Configuration;
 use XeroAPI\XeroPHP\Api\IdentityApi;
+use XeroAPI\XeroPHP\Configuration;
 use GuzzleHttp\Client;
 use Exception;
 use App\Models\XeroToken;
@@ -191,6 +191,39 @@ class XeroService
         return $this->executeWithRefresh($tenantId, function() use ($tenantId, $accountId) {
             $accountingApi = $this->getAccountingApi($tenantId);
             return $accountingApi->deleteAccount($tenantId, $accountId);
+        });
+    }
+
+    public function getUsers($tenantId)
+    {
+        return $this->executeWithRefresh($tenantId, function() use ($tenantId) {
+            $accountingApi = $this->getAccountingApi($tenantId);
+            
+            // Debug: Log API call
+            \Log::info('XeroService::getUsers - Making API Call', [
+                'tenant_id' => $tenantId,
+                'api_class' => get_class($accountingApi)
+            ]);
+            
+            $result = $accountingApi->getUsers($tenantId);
+            
+            // Debug: Log result
+            \Log::info('XeroService::getUsers - API Response', [
+                'tenant_id' => $tenantId,
+                'result_type' => gettype($result),
+                'has_users' => method_exists($result, 'getUsers'),
+                'users_count' => method_exists($result, 'getUsers') ? count($result->getUsers()) : 'N/A'
+            ]);
+            
+            return $result->getUsers();
+        });
+    }
+
+    public function getUser($tenantId, $userId)
+    {
+        return $this->executeWithRefresh($tenantId, function() use ($tenantId, $userId) {
+            $accountingApi = $this->getAccountingApi($tenantId);
+            return $accountingApi->getUser($tenantId, $userId);
         });
     }
 
