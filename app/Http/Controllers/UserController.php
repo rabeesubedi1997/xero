@@ -22,7 +22,7 @@ class UserController extends Controller
             // Debug: Initial state
             \Log::info('UserController - Request Start', [
                 'all_headers' => $request->headers->all(),
-                'all_query_params' => $request->query()->all(),
+                'all_query_params' => is_object($request->query()) ? $request->query()->all() : $request->query(),
                 'header_xero_tenant_id' => $request->header('Xero-Tenant-ID'),
                 'header_xero_tenant_id_lowercase' => $request->header('xero-tenant-id'),
                 'header_xero_tenant_id_uppercase' => $request->header('XERO-TENANT-ID'),
