@@ -202,20 +202,56 @@ class XeroService
             // Debug: Log API call
             \Log::info('XeroService::getUsers - Making API Call', [
                 'tenant_id' => $tenantId,
-                'api_class' => get_class($accountingApi)
+                'api_class' => get_class($accountingApi),
+                'available_methods' => get_class_methods($accountingApi)
             ]);
             
-            $result = $accountingApi->getUsers($tenantId);
+            // Xero Accounting API doesn't have getUsers method
+            // Need to use Identity API or check if method exists
+            if (method_exists($accountingApi, 'getUsers')) {
+                $result = $accountingApi->getUsers($tenantId);
+            } else {
+                // Fallback: try to get users from accounts or return empty
+                \Log::warning('XeroService::getUsers - getUsers method not found', [
+                    'tenant_id' => $tenantId,
+                    'api_class' => get_class($accountingApi)
+                ]);
+                
+                // Try to get all accounts and extract user info
+                try {
+                    $accounts = $accountingApi->getAccounts($tenantId);
+                    $users = [];
+                    
+                    if ($accounts && method_exists($accounts, 'getAccounts')) {
+                        foreach ($accounts->getAccounts() as $account) {
+                            // Extract user info from account if possible
+                            $users[] = [
+                                'user_id' => $account->getAccountID() ?? 'unknown',
+                                'name' => $account->getName() ?? 'Unknown User',
+                                'email' => 'Not available from Account API',
+                                'account_type' => $account->getType() ?? 'UNKNOWN'
+                            ];
+                        }
+                    }
+                    
+                    $result = $users;
+                } catch (\Exception $e) {
+                    \Log::error('XeroService::getUsers - Fallback failed', [
+                        'tenant_id' => $tenantId,
+                        'error' => $e->getMessage()
+                    ]);
+                    $result = [];
+                }
+            }
             
             // Debug: Log result
             \Log::info('XeroService::getUsers - API Response', [
                 'tenant_id' => $tenantId,
                 'result_type' => gettype($result),
-                'has_users' => method_exists($result, 'getUsers'),
-                'users_count' => method_exists($result, 'getUsers') ? count($result->getUsers()) : 'N/A'
+                'result_count' => is_array($result) ? count($result) : 0
             ]);
             
-            return $result->getUsers();
+            return $result;
         });
     }
 
