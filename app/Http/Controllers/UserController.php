@@ -24,13 +24,24 @@ class UserController extends Controller
                 $tenantId = $request->input('Xero-Tenant-ID');
             }
             
+            // If still no tenant ID, try to get from database (first available)
+            if (!$tenantId) {
+                $firstToken = \App\Models\XeroToken::first();
+                if ($firstToken) {
+                    $tenantId = $firstToken->tenant_id;
+                }
+            }
+            
             if (!$tenantId) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Xero-Tenant-ID header or URL parameter is required',
+                    'help' => 'Add ?Xero-Tenant-ID=TENANT_ID to URL or Xero-Tenant-ID header',
                     'debug' => [
                         'header_value' => $request->header('Xero-Tenant-ID'),
-                        'url_parameter_value' => $request->input('Xero-Tenant-ID')
+                        'url_parameter_value' => $request->input('Xero-Tenant-ID'),
+                        'available_tokens' => \App\Models\XeroToken::count(),
+                        'first_tenant' => \App\Models\XeroToken::first()?->tenant_id
                     ]
                 ], 400);
             }
@@ -40,7 +51,8 @@ class UserController extends Controller
             return response()->json([
                 'success' => true,
                 'data' => $users,
-                'count' => count($users)
+                'count' => count($users),
+                'tenant_used' => $tenantId
             ]);
         } catch (\Exception $e) {
             return response()->json([
@@ -63,10 +75,19 @@ class UserController extends Controller
                 $tenantId = $request->input('Xero-Tenant-ID');
             }
             
+            // If still no tenant ID, try to get from database (first available)
+            if (!$tenantId) {
+                $firstToken = \App\Models\XeroToken::first();
+                if ($firstToken) {
+                    $tenantId = $firstToken->tenant_id;
+                }
+            }
+            
             if (!$tenantId) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Xero-Tenant-ID header or URL parameter is required'
+                    'message' => 'Xero-Tenant-ID header or URL parameter is required',
+                    'help' => 'Add ?Xero-Tenant-ID=TENANT_ID to URL or Xero-Tenant-ID header'
                 ], 400);
             }
             
@@ -75,7 +96,8 @@ class UserController extends Controller
             return response()->json([
                 'success' => true,
                 'data' => $user,
-                'message' => 'User retrieved successfully'
+                'message' => 'User retrieved successfully',
+                'tenant_used' => $tenantId
             ]);
         } catch (\Exception $e) {
             return response()->json([
