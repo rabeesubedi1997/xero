@@ -24,6 +24,14 @@ class UserController extends Controller
                 $tenantId = $request->input('Xero-Tenant-ID');
             }
             
+            // Debug: Initial state
+            \Log::info('UserController - Initial Request Debug', [
+                'tenant_id_from_header' => $request->header('Xero-Tenant-ID'),
+                'tenant_id_from_url' => $request->input('Xero-Tenant-ID'),
+                'request_method' => $request->method(),
+                'request_url' => $request->fullUrl()
+            ]);
+            
             // If still no tenant ID, try to get from database (first available)
             if (!$tenantId) {
                 $firstToken = \App\Models\XeroToken::first();
@@ -46,6 +54,13 @@ class UserController extends Controller
                     'all_tokens' => \App\Models\XeroToken::all()->pluck('tenant_id')->toArray()
                 ]);
             }
+            
+            // Debug: Final tenant ID decision
+            \Log::info('UserController - Final Tenant ID', [
+                'final_tenant_id' => $tenantId,
+                'is_null' => is_null($tenantId),
+                'tenant_id_type' => gettype($tenantId)
+            ]);
             
             if (!$tenantId) {
                 return response()->json([
