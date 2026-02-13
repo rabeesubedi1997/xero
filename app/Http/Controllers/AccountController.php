@@ -40,6 +40,25 @@ class AccountController extends Controller
             // Debug: Check what we're getting from Xero
             $accountsArray = $accounts->getAccounts();
             
+            // Inspect first account object
+            $firstAccount = null;
+            $sampleAccountData = null;
+            if (!empty($accountsArray)) {
+                $firstAccount = $accountsArray[0];
+                $sampleAccountData = [
+                    'account_class' => get_class($firstAccount),
+                    'account_methods' => get_class_methods($firstAccount),
+                    'account_properties' => get_object_vars($firstAccount),
+                    'has_getters' => [
+                        'getName' => method_exists($firstAccount, 'getName'),
+                        'getCode' => method_exists($firstAccount, 'getCode'),
+                        'getType' => method_exists($firstAccount, 'getType'),
+                        'getAccountID' => method_exists($firstAccount, 'getAccountID'),
+                        'getStatus' => method_exists($firstAccount, 'getStatus')
+                    ]
+                ];
+            }
+            
             return response()->json([
                 'success' => true,
                 'data' => $accountsArray,
@@ -47,7 +66,9 @@ class AccountController extends Controller
                 'debug' => [
                     'tenant_id' => $tenantId,
                     'raw_response_type' => gettype($accounts),
-                    'accounts_type' => gettype($accountsArray)
+                    'accounts_type' => gettype($accountsArray),
+                    'sample_account' => $sampleAccountData,
+                    'first_account_raw' => $firstAccount
                 ]
             ]);
         } catch (\Exception $e) {
