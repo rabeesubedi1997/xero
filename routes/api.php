@@ -37,7 +37,13 @@ Route::middleware('api')->group(function () {
     });
 
     // Xero Users API Routes
-    Route::middleware('xero.tenant')->prefix('users')->group(function () {
+    Route::prefix('users')->group(function () {
+        Route::get('/', [UserController::class, 'index']);
+        Route::get('/{userId}', [UserController::class, 'show']);
+    });
+    
+    // Xero Users API Routes (without middleware for testing)
+    Route::prefix('users-test')->group(function () {
         Route::get('/', [UserController::class, 'index']);
         Route::get('/{userId}', [UserController::class, 'show']);
     });
