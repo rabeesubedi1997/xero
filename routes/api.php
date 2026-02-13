@@ -44,8 +44,26 @@ Route::middleware('api')->group(function () {
     Route::get('/test', function (Request $request) {
 
     $headers = $request->headers->all();
- 
-    dd($headers);
+    $urlParams = $request->query();
+    
+    // Check database tokens
+    $tokens = \App\Models\XeroToken::all();
+    $firstToken = \App\Models\XeroToken::first();
+    
+    dd([
+        'headers' => $headers,
+        'url_params' => $urlParams,
+        'xero_tenant_id_header' => $request->header('Xero-Tenant-ID'),
+        'xero_tenant_id_url' => $request->input('Xero-Tenant-ID'),
+        'total_tokens' => $tokens->count(),
+        'first_token' => $firstToken ? [
+            'tenant_id' => $firstToken->tenant_id,
+            'tenant_name' => $firstToken->tenant_name,
+            'expires_at' => $firstToken->expires_at,
+            'is_expired' => $firstToken->isExpired()
+        ] : null,
+        'all_tenant_ids' => $tokens->pluck('tenant_id')->toArray()
+    ]);
 
 });
 
