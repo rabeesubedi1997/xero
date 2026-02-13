@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Services\XeroService;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 
@@ -85,17 +86,16 @@ class UserController extends Controller
             ]);
 
             if (!$tenantId) {
+                // No tenant id provided — return local application users from database
+                $localUsers = User::select('id', 'name', 'email')->get();
+
                 return response()->json([
-                    'success' => false,
-                    'message' => 'Xero-Tenant-ID header or URL parameter is required',
-                    'help' => 'Add ?Xero-Tenant-ID=TENANT_ID to URL or Xero-Tenant-ID header',
-                    'debug' => [
-                        'header_value' => $request->header('Xero-Tenant-ID'),
-                        'url_parameter_value' => $request->input('Xero-Tenant-ID'),
-                        'available_tokens' => \App\Models\XeroToken::count(),
-                        'first_tenant' => \App\Models\XeroToken::first()?->tenant_id
-                    ]
-                ], 400);
+                    'success' => true,
+                    'data' => $localUsers,
+                    'count' => $localUsers->count(),
+                    'tenant_used' => null,
+                    'note' => 'No Xero tenant id provided; returned local users from database'
+                ]);
             }
 
             $users = $this->xeroService->getUsers($tenantId);
@@ -136,9 +136,20 @@ class UserController extends Controller
             }
 
             if (!$tenantId) {
+                // No tenant id — try to return a local user from the app DB
+                $localUser = User::find($userId);
+                if ($localUser) {
+                    return response()->json([
+                        'success' => true,
+                        'data' => $localUser,
+                        'message' => 'Local user returned (no Xero tenant id)',
+                        'tenant_used' => null
+                    ]);
+                }
+
                 return response()->json([
                     'success' => false,
-                    'message' => 'Xero-Tenant-ID header or URL parameter is required',
+                    'message' => 'Xero-Tenant-ID header or URL parameter is required and local user not found',
                     'help' => 'Add ?Xero-Tenant-ID=TENANT_ID to URL or Xero-Tenant-ID header'
                 ], 400);
             }

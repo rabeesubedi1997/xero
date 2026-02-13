@@ -18,21 +18,21 @@ class XeroTenantMiddleware
 
     public function handle(Request $request, Closure $next)
     {
-        if (!$this->xeroService->isAuthenticated()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Not authenticated with Xero'
-            ], 401);
+        // Try common header/query variations (case-insensitive)
+        $tenantId = $request->header('Xero-Tenant-ID')
+            ?: $request->header('xero-tenant-id')
+            ?: $request->header('xero_tenant_id')
+            ?: $request->header('tenant_id')
+            ?: $request->header('tenantId');
+
+        if (!$tenantId) {
+            $tenantId = $request->input('Xero-Tenant-ID')
+                ?: $request->input('xero-tenant-id')
+                ?: $request->input('xero_tenant_id')
+                ?: $request->input('tenant_id')
+                ?: $request->input('tenantId');
         }
 
-        // Try header first, then URL parameter as fallback
-        $tenantId = $request->header('Xero-Tenant-ID');
-        
-        // Fallback to URL parameter if header is not provided
-        if (!$tenantId) {
-            $tenantId = $request->input('Xero-Tenant-ID');
-        }
-        
         // Debug: Log all sources for troubleshooting
         \Log::info('XeroTenantMiddleware - Tenant ID Sources:', [
             'header_value' => $request->header('Xero-Tenant-ID'),
@@ -41,49 +41,54 @@ class XeroTenantMiddleware
             'all_headers' => $request->headers->all(),
             'all_query_params' => $request->query()
         ]);
-        
-        if (!$tenantId || $tenantId === 'null') {
-            return response()->json([
-                'success' => false,
-                'message' => 'Xero-Tenant-ID header or URL parameter is required and cannot be null',
-                'debug' => [
-                    'received_headers' => $request->headers->all(),
-                    'url_parameters' => $request->query(),
-                    'header_value' => $request->header('Xero-Tenant-ID'),
-                    'url_parameter_value' => $request->input('Xero-Tenant-ID')
-                ]
-            ], 400);
-        }
-        
-        try {
-            $tenants = $this->xeroService->getTenants();
-            $validTenant = collect($tenants)->first(function ($tenant) use ($tenantId) {
-                return $tenant['tenantId'] === $tenantId;
-            });
 
-            if (!$validTenant) {
+        // If tenantId is explicitly the string 'null', treat as absent
+        if ($tenantId === 'null') {
+            $tenantId = null;
+        }
+
+        // If a tenantId was provided, validate it against known tenants when possible
+        if ($tenantId) {
+            try {
+                if (!$this->xeroService->isAuthenticated()) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Not authenticated with Xero'
+                    ], 401);
+                }
+
+                $tenants = $this->xeroService->getTenants();
+                $validTenant = collect($tenants)->first(function ($tenant) use ($tenantId) {
+                    return ($tenant['tenantId'] ?? null) === $tenantId;
+                });
+
+                if (!$validTenant) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Invalid or unauthorized tenant ID',
+                        'debug' => [
+                            'received_tenant_id' => $tenantId,
+                            'available_tenants' => $tenants
+                        ]
+                    ], 403);
+                }
+
+                $request->merge(['xero_tenant_id' => $tenantId]);
+            } catch (\Exception $e) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Invalid or unauthorized tenant ID',
+                    'message' => 'Tenant validation failed: ' . $e->getMessage(),
                     'debug' => [
-                        'received_tenant_id' => $tenantId,
-                        'available_tenants' => $tenants
+                        'tenant_id' => $tenantId,
+                        'error' => $e->getMessage()
                     ]
-                ], 403);
+                ], 500);
             }
-
-            $request->merge(['xero_tenant_id' => $tenantId]);
-
-            return $next($request);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Tenant validation failed: ' . $e->getMessage(),
-                'debug' => [
-                    'tenant_id' => $tenantId,
-                    'error' => $e->getMessage()
-                ]
-            ], 500);
+        } else {
+            // No tenant provided — allow request through and let controller handle DB fallback
+            $request->merge(['xero_tenant_id' => null]);
         }
+
+        return $next($request);
     }
 }
