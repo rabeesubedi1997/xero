@@ -40,14 +40,37 @@ class AccountController extends Controller
             // Debug: Check what we're getting from Xero
             $accountsArray = $accounts->getAccounts();
             
+            // Extract actual data from all accounts
+            $formattedAccounts = [];
+            foreach ($accountsArray as $account) {
+                $formattedAccounts[] = [
+                    'account_id' => method_exists($account, 'getAccountID') ? $account->getAccountID() : null,
+                    'name' => method_exists($account, 'getName') ? $account->getName() : null,
+                    'code' => method_exists($account, 'getCode') ? $account->getCode() : null,
+                    'type' => method_exists($account, 'getType') ? $account->getType() : null,
+                    'status' => method_exists($account, 'getStatus') ? $account->getStatus() : null,
+                    'description' => method_exists($account, 'getDescription') ? $account->getDescription() : null,
+                    'currency_code' => method_exists($account, 'getCurrencyCode') ? $account->getCurrencyCode() : null,
+                    'bank_account_number' => method_exists($account, 'getBankAccountNumber') ? $account->getBankAccountNumber() : null,
+                    'tax_type' => method_exists($account, 'getTaxType') ? $account->getTaxType() : null,
+                    'enable_payments_to_account' => method_exists($account, 'getEnablePaymentsToAccount') ? $account->getEnablePaymentsToAccount() : null,
+                    'show_in_expense_claims' => method_exists($account, 'getShowInExpenseClaims') ? $account->getShowInExpenseClaims() : null,
+                    'class' => method_exists($account, 'getClass') ? $account->getClass() : null,
+                    'system_account' => method_exists($account, 'getSystemAccount') ? $account->getSystemAccount() : null,
+                    'reporting_code' => method_exists($account, 'getReportingCode') ? $account->getReportingCode() : null,
+                    'updated_date_utc' => method_exists($account, 'getUpdatedDateUtc') ? $account->getUpdatedDateUtc() : null
+                ];
+            }
+            
             // Inspect first account object
             $firstAccount = null;
             $sampleAccountData = null;
             if (!empty($accountsArray)) {
                 $firstAccount = $accountsArray[0];
+                
+                // Extract actual data using getters
                 $sampleAccountData = [
                     'account_class' => get_class($firstAccount),
-                    'account_methods' => get_class_methods($firstAccount),
                     'account_properties' => get_object_vars($firstAccount),
                     'has_getters' => [
                         'getName' => method_exists($firstAccount, 'getName'),
@@ -55,14 +78,23 @@ class AccountController extends Controller
                         'getType' => method_exists($firstAccount, 'getType'),
                         'getAccountID' => method_exists($firstAccount, 'getAccountID'),
                         'getStatus' => method_exists($firstAccount, 'getStatus')
+                    ],
+                    'extracted_data' => [
+                        'account_id' => method_exists($firstAccount, 'getAccountID') ? $firstAccount->getAccountID() : 'N/A',
+                        'name' => method_exists($firstAccount, 'getName') ? $firstAccount->getName() : 'N/A',
+                        'code' => method_exists($firstAccount, 'getCode') ? $firstAccount->getCode() : 'N/A',
+                        'type' => method_exists($firstAccount, 'getType') ? $firstAccount->getType() : 'N/A',
+                        'status' => method_exists($firstAccount, 'getStatus') ? $firstAccount->getStatus() : 'N/A',
+                        'description' => method_exists($firstAccount, 'getDescription') ? $firstAccount->getDescription() : 'N/A',
+                        'currency_code' => method_exists($firstAccount, 'getCurrencyCode') ? $firstAccount->getCurrencyCode() : 'N/A'
                     ]
                 ];
             }
             
             return response()->json([
                 'success' => true,
-                'data' => $accountsArray,
-                'count' => count($accountsArray),
+                'data' => $formattedAccounts,
+                'count' => count($formattedAccounts),
                 'debug' => [
                     'tenant_id' => $tenantId,
                     'raw_response_type' => gettype($accounts),
