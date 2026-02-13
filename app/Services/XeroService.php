@@ -141,7 +141,24 @@ class XeroService
     {
         return $this->executeWithRefresh($tenantId, function() use ($tenantId) {
             $accountingApi = $this->getAccountingApi($tenantId);
-            return $accountingApi->getAccounts($tenantId);
+            
+            // Debug: Log the API call
+            \Log::info('XeroService::getAccounts - Making API Call', [
+                'tenant_id' => $tenantId,
+                'api_class' => get_class($accountingApi)
+            ]);
+            
+            $result = $accountingApi->getAccounts($tenantId);
+            
+            // Debug: Log the result
+            \Log::info('XeroService::getAccounts - API Response', [
+                'tenant_id' => $tenantId,
+                'result_type' => gettype($result),
+                'has_accounts' => method_exists($result, 'getAccounts'),
+                'accounts_count' => method_exists($result, 'getAccounts') ? count($result->getAccounts()) : 'N/A'
+            ]);
+            
+            return $result;
         });
     }
 

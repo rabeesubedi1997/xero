@@ -36,15 +36,29 @@ class AccountController extends Controller
             }
             
             $accounts = $this->xeroService->getAccounts($tenantId);
-
+            
+            // Debug: Check what we're getting from Xero
+            $accountsArray = $accounts->getAccounts();
+            
             return response()->json([
                 'success' => true,
-                'data' => $accounts->getAccounts()
+                'data' => $accountsArray,
+                'count' => count($accountsArray),
+                'debug' => [
+                    'tenant_id' => $tenantId,
+                    'raw_response_type' => gettype($accounts),
+                    'accounts_type' => gettype($accountsArray)
+                ]
             ]);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to fetch accounts: ' . $e->getMessage()
+                'message' => 'Failed to fetch accounts: ' . $e->getMessage(),
+                'error_details' => [
+                    'file' => $e->getFile(),
+                    'line' => $e->getLine(),
+                    'trace' => $e->getTraceAsString()
+                ]
             ], 500);
         }
     }
