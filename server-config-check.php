@@ -27,4 +27,3 @@ echo "   APP_ENV: " . (env('APP_ENV', 'local')) . "\n";
 echo "   APP_DEBUG: " . (env('APP_DEBUG', 'false')) . "\n";
 
 echo "\n=== End Check ===\n";
-?>
