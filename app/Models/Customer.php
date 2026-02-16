@@ -68,61 +68,6 @@ class Customer extends Model
     }
 
     /**
-     * Prepare customer data for Xero API
-     */
-    public function toXeroArray(): array
-    {
-        return [
-            'Name' => $this->name,
-            'FirstName' => $this->first_name,
-            'LastName' => $this->last_name,
-            'EmailAddress' => $this->email_address,
-            'CompanyNumber' => $this->company_number,
-            'TaxNumber' => $this->tax_number,
-            'Addresses' => $this->getFormattedAddresses(),
-            'Phones' => $this->getFormattedPhones(),
-            'DefaultCurrency' => 'USD', // Can be made configurable
-        ];
-    }
-
-    /**
-     * Format address data for Xero API
-     */
-    private function getFormattedAddresses(): ?array
-    {
-        if (!$this->address) {
-            return null;
-        }
-
-        return [
-            [
-                'AddressType' => 'STREET',
-                'AddressLine1' => $this->address,
-                'City' => $this->city,
-                'PostalCode' => $this->postal_code,
-                'Country' => $this->country,
-            ]
-        ];
-    }
-
-    /**
-     * Format phone data for Xero API
-     */
-    private function getFormattedPhones(): ?array
-    {
-        if (!$this->phone_number) {
-            return null;
-        }
-
-        return [
-            [
-                'PhoneType' => 'DEFAULT',
-                'PhoneNumber' => $this->phone_number,
-            ]
-        ];
-    }
-
-    /**
      * Scope to get pending customers
      */
     public function scopePending($query)

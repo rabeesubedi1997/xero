@@ -6,6 +6,8 @@ use App\Models\Customer;
 use App\Models\XeroToken;
 use XeroAPI\XeroPHP\Models\Accounting\Contact;
 use XeroAPI\XeroPHP\Models\Accounting\Contacts;
+use XeroAPI\XeroPHP\Models\Accounting\Phone;
+use XeroAPI\XeroPHP\Models\Accounting\Address;
 use Exception;
 
 class CustomerService
@@ -170,19 +172,36 @@ class CustomerService
             $contact->setTaxNumber($customer->tax_number);
         }
 
+        // Add phone if available
         if ($customer->phone_number) {
-            // Set phone with DEFAULT type
-            $phones = $customer->getFormattedPhones();
-            if ($phones) {
-                $contact->setPhones($phones);
+            try {
+                $phone = new Phone();
+                $phone->setPhoneType('DEFAULT');
+                $phone->setPhoneNumber($customer->phone_number);
+                $contact->setPhones([$phone]);
+            } catch (Exception $e) {
+                \Log::warning('Failed to set phone', ['error' => $e->getMessage()]);
             }
         }
 
+        // Add address if available
         if ($customer->address) {
-            // Set addresses
-            $addresses = $customer->getFormattedAddresses();
-            if ($addresses) {
-                $contact->setAddresses($addresses);
+            try {
+                $address = new Address();
+                $address->setAddressType('STREET');
+                $address->setAddressLine1($customer->address);
+                if ($customer->city) {
+                    $address->setCity($customer->city);
+                }
+                if ($customer->postal_code) {
+                    $address->setPostalCode($customer->postal_code);
+                }
+                if ($customer->country) {
+                    $address->setCountry($customer->country);
+                }
+                $contact->setAddresses([$address]);
+            } catch (Exception $e) {
+                \Log::warning('Failed to set address', ['error' => $e->getMessage()]);
             }
         }
 
@@ -245,38 +264,5 @@ class CustomerService
         $customer->save();
 
         return $customer;
-    }
-
-    /**
-     * Get formatted phone array for Xero API compatibility
-     */
-    private function getFormattedPhones(Customer $customer): ?array
-    {
-        if (!$customer->phone_number) {
-            return null;
-        }
-
-        return [
-            'PhoneType' => 'DEFAULT',
-            'PhoneNumber' => $customer->phone_number,
-        ];
-    }
-
-    /**
-     * Get formatted address array for Xero API compatibility
-     */
-    private function getFormattedAddresses(Customer $customer): ?array
-    {
-        if (!$customer->address) {
-            return null;
-        }
-
-        return [
-            'AddressType' => 'STREET',
-            'AddressLine1' => $customer->address,
-            'City' => $customer->city,
-            'PostalCode' => $customer->postal_code,
-            'Country' => $customer->country,
-        ];
     }
 }

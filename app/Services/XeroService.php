@@ -378,7 +378,11 @@ class XeroService
                 'contact_name' => $contactData->getName() ?? 'Unknown'
             ]);
 
-            $result = $accountingApi->createContact($tenantId, $contactData);
+            // Wrap Contact in Contacts collection
+            $contacts = new Contacts();
+            $contacts->setContacts([$contactData]);
+
+            $result = $accountingApi->createContact($tenantId, $contacts);
 
             \Log::info('XeroService::createContact - Contact created successfully', [
                 'tenant_id' => $tenantId,
@@ -404,7 +408,11 @@ class XeroService
                 'contact_id' => $contactId
             ]);
 
-            $result = $accountingApi->updateContact($tenantId, $contactId, $contactData);
+            // Wrap Contact in Contacts collection
+            $contacts = new Contacts();
+            $contacts->setContacts([$contactData]);
+
+            $result = $accountingApi->updateContact($tenantId, $contactId, $contacts);
 
             \Log::info('XeroService::updateContact - Contact updated successfully', [
                 'tenant_id' => $tenantId,
