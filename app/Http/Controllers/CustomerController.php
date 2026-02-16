@@ -166,13 +166,13 @@ class CustomerController extends Controller
 
     /**
      * Sync a single customer to Xero
+     * Auto-fetches tenant_id from XeroToken database
      */
-    public function syncToXero(Request $request, Customer $customer): JsonResponse
+    public function syncToXero(Customer $customer): JsonResponse
     {
         try {
-            $tenantId = $request->input('tenant_id');
-
-            $customer = $this->customerService->syncToXero($customer, $tenantId);
+            // Tenant ID is fetched automatically from XeroToken in CustomerService
+            $customer = $this->customerService->syncToXero($customer);
 
             return response()->json([
                 'success' => true,
@@ -190,13 +190,13 @@ class CustomerController extends Controller
 
     /**
      * Sync all pending customers to Xero
+     * Auto-fetches tenant_id from XeroToken database
      */
-    public function syncAllPending(Request $request): JsonResponse
+    public function syncAllPending(): JsonResponse
     {
         try {
-            $tenantId = $request->input('tenant_id');
-
-            $results = $this->customerService->syncAllPending($tenantId);
+            // Tenant ID is fetched automatically from XeroToken in CustomerService
+            $results = $this->customerService->syncAllPending();
 
             return response()->json([
                 'success' => true,

@@ -35,18 +35,49 @@ class CustomerService
     }
 
     /**
+     * Get valid tenant ID from XeroToken
+     */
+    private function getValidTenantId(): string
+    {
+        $token = XeroToken::first();
+
+        if (!$token) {
+            throw new Exception('No Xero connection found. Please authenticate with Xero first.');
+        }
+
+        // Check if token is expired and refresh if needed
+        if ($token->isExpired()) {
+            \Log::info('CustomerService::getValidTenantId - Token expired, refreshing', [
+                'tenant_id' => $token->tenant_id
+            ]);
+            
+            $this->xeroService->refreshAccessToken($token->tenant_id);
+            
+            // Reload token after refresh
+            $token = XeroToken::findByTenantId($token->tenant_id);
+            
+            \Log::info('CustomerService::getValidTenantId - Token refreshed successfully', [
+                'tenant_id' => $token->tenant_id
+            ]);
+        }
+
+        \Log::info('CustomerService::getValidTenantId - Valid tenant ID retrieved', [
+            'tenant_id' => $token->tenant_id,
+            'tenant_name' => $token->tenant_name
+        ]);
+
+        return $token->tenant_id;
+    }
+
+    /**
      * Sync a local customer to Xero
      */
     public function syncToXero(Customer $customer, string $tenantId = null): Customer
     {
         try {
-            // Get tenant ID (use first or provided)
+            // Get tenant ID (use provided or fetch from XeroToken)
             if (!$tenantId) {
-                $token = XeroToken::first();
-                if (!$token) {
-                    throw new Exception('No Xero tenant available. Please authenticate first.');
-                }
-                $tenantId = $token->tenant_id;
+                $tenantId = $this->getValidTenantId();
             }
 
             \Log::info('CustomerService::syncToXero - Starting sync', [
@@ -109,36 +140,73 @@ class CustomerService
     /**
      * Sync all pending customers to Xero
      */
-    public function syncAllPending(string $tenantId = null): array
+    public function syncAllPending(): array
     {
-        $pendingCustomers = Customer::pending()->get();
+        try {
+            // Get valid tenant ID once for all syncs
+            $tenantId = $this->getValidTenantId();
 
-        \Log::info('CustomerService::syncAllPending - Found pending customers', [
-            'pending_count' => $pendingCustomers->count()
-        ]);
+            $pendingCustomers = Customer::pending()->get();
 
-        $results = [
-            'successful' => 0,
-            'failed' => 0,
-            'errors' => []
-        ];
+            \Log::info('CustomerService::syncAllPending - Found pending customers', [
+                'pending_count' => $pendingCustomers->count(),
+                'tenant_id' => $tenantId
+            ]);
 
-        foreach ($pendingCustomers as $customer) {
-            try {
-                $this->syncToXero($customer, $tenantId);
-                $results['successful']++;
-            } catch (Exception $e) {
-                $results['failed']++;
-                $results['errors'][] = [
-                    'customer_id' => $customer->id,
-                    'error' => $e->getMessage()
-                ];
+            $results = [
+                'successful' => 0,
+                'failed' => 0,
+                'errors' => [],
+                'tenant_id' => $tenantId
+            ];
+
+            if ($pendingCustomers->isEmpty()) {
+                \Log::info('CustomerService::syncAllPending - No pending customers to sync');
+                return $results;
             }
+
+            foreach ($pendingCustomers as $customer) {
+                try {
+                    $this->syncToXero($customer, $tenantId);
+                    $results['successful']++;
+                    
+                    \Log::info('CustomerService::syncAllPending - Customer synced', [
+                        'customer_id' => $customer->id,
+                        'customer_name' => $customer->name
+                    ]);
+                } catch (Exception $e) {
+                    $results['failed']++;
+                    $results['errors'][] = [
+                        'customer_id' => $customer->id,
+                        'customer_name' => $customer->name,
+                        'error' => $e->getMessage()
+                    ];
+                    
+                    \Log::error('CustomerService::syncAllPending - Customer sync failed', [
+                        'customer_id' => $customer->id,
+                        'error' => $e->getMessage()
+                    ]);
+                }
+            }
+
+            \Log::info('CustomerService::syncAllPending - Batch sync completed', $results);
+
+            return $results;
+        } catch (Exception $e) {
+            \Log::error('CustomerService::syncAllPending - Batch sync failed', [
+                'error' => $e->getMessage()
+            ]);
+
+            return [
+                'successful' => 0,
+                'failed' => 0,
+                'errors' => [
+                    [
+                        'error' => $e->getMessage()
+                    ]
+                ]
+            ];
         }
-
-        \Log::info('CustomerService::syncAllPending - Batch sync completed', $results);
-
-        return $results;
     }
 
     /**
