@@ -5,6 +5,8 @@ namespace App\Services;
 use XeroAPI\XeroPHP\Api\AccountingApi;
 use XeroAPI\XeroPHP\Api\IdentityApi;
 use XeroAPI\XeroPHP\Configuration;
+use XeroAPI\XeroPHP\Models\Accounting\Contacts;
+use XeroAPI\XeroPHP\Models\Accounting\Contact;
 use GuzzleHttp\Client;
 use Exception;
 use App\Models\XeroToken;
