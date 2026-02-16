@@ -48,8 +48,8 @@ Route::middleware('api')->group(function () {
         Route::get('/', [CustomerController::class, 'index']);
         Route::get('/pending', [CustomerController::class, 'pending']);
         Route::get('/synced', [CustomerController::class, 'synced']);
-        Route::post('/sync/all', [CustomerController::class, 'syncAllPending']);
-        Route::post('/{customer}/sync', [CustomerController::class, 'syncToXero']);
+        Route::match(['get', 'post'], '/sync/all', [CustomerController::class, 'syncAllPending']);
+        Route::match(['get', 'post'], '/{customer}/sync', [CustomerController::class, 'syncToXero']);
         Route::post('/', [CustomerController::class, 'store']);
         Route::get('/{customer}', [CustomerController::class, 'show']);
         Route::put('/{customer}', [CustomerController::class, 'update']);
