@@ -384,7 +384,7 @@ class XeroService
             $contacts = new Contacts();
             $contacts->setContacts([$contactData]);
 
-            $result = $accountingApi->createContact($tenantId, $contacts);
+            $result = $accountingApi->createContacts($tenantId, $contacts);
 
             \Log::info('XeroService::createContact - Contact created successfully', [
                 'tenant_id' => $tenantId,
