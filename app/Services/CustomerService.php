@@ -50,12 +50,12 @@ class CustomerService
             \Log::info('CustomerService::getValidTenantId - Token expired, refreshing', [
                 'tenant_id' => $token->tenant_id
             ]);
-            
+
             $this->xeroService->refreshAccessToken($token->tenant_id);
-            
+
             // Reload token after refresh
             $token = XeroToken::findByTenantId($token->tenant_id);
-            
+
             \Log::info('CustomerService::getValidTenantId - Token refreshed successfully', [
                 'tenant_id' => $token->tenant_id
             ]);
@@ -169,7 +169,7 @@ class CustomerService
                 try {
                     $this->syncToXero($customer, $tenantId);
                     $results['successful']++;
-                    
+
                     \Log::info('CustomerService::syncAllPending - Customer synced', [
                         'customer_id' => $customer->id,
                         'customer_name' => $customer->name
@@ -181,7 +181,7 @@ class CustomerService
                         'customer_name' => $customer->name,
                         'error' => $e->getMessage()
                     ];
-                    
+
                     \Log::error('CustomerService::syncAllPending - Customer sync failed', [
                         'customer_id' => $customer->id,
                         'error' => $e->getMessage()
