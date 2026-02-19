@@ -22,10 +22,10 @@ use App\Http\Controllers\CustomerController;
 // ERPLY Debug Route (outside API middleware for easier access)
 Route::get('/erply-debug', function () {
     $env = [
-        'ERPLY_API_URL' => config('services.erply.api_url'),
-        'ERPLY_USERNAME' => config('services.erply.username'),
-        'ERPLY_PASSWORD' => str_repeat('*', strlen(config('services.erply.password'))),
-        'ERPLY_CLIENT_CODE' => config('services.erply.client_code'),
+        'ERPLY_API_URL' => env('ERPLY_API_URL', 'https://606950.erply.com/api/'),
+        'ERPLY_USERNAME' => env('ERPLY_USERNAME', 'support@retailcare.com.au'),
+        'ERPLY_PASSWORD' => str_repeat('*', strlen(env('ERPLY_PASSWORD', 'NF7c8XUFv0!C'))),
+        'ERPLY_CLIENT_CODE' => env('ERPLY_CLIENT_CODE', '606950'),
     ];
 
     echo "=== ERPLY API Debug ===\n\n";
@@ -39,12 +39,12 @@ Route::get('/erply-debug', function () {
     echo "=== Test 1: Authentication ===\n";
     try {
         $ch = curl_init();
-        curl_setopt($ch, CURLOPT_URL, config('services.erply.api_url') . 'auth/login');
+        curl_setopt($ch, CURLOPT_URL, env('ERPLY_API_URL', 'https://606950.erply.com/api/') . 'auth/login');
         curl_setopt($ch, CURLOPT_POST, true);
         curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query([
-            'username' => config('services.erply.username'),
-            'password' => config('services.erply.password'),
-            'clientCode' => config('services.erply.client_code')
+            'username' => env('ERPLY_USERNAME', 'support@retailcare.com.au'),
+            'password' => env('ERPLY_PASSWORD', 'NF7c8XUFv0!C'),
+            'clientCode' => env('ERPLY_CLIENT_CODE', '606950')
         ]));
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_TIMEOUT, 30);
@@ -66,7 +66,7 @@ Route::get('/erply-debug', function () {
             // Test 2: Get Customers
             echo "=== Test 2: Get Customers ===\n";
             $ch = curl_init();
-            curl_setopt($ch, CURLOPT_URL, config('services.erply.api_url') . 'customers');
+            curl_setopt($ch, CURLOPT_URL, env('ERPLY_API_URL', 'https://606950.erply.com/api/') . 'customers');
             curl_setopt($ch, CURLOPT_POST, true);
             curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query([
                 'request' => json_encode([
