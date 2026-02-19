@@ -191,6 +191,9 @@ class ErplyService
     public function getCustomers($page = 1, $limit = 100): array
     {
         try {
+            // First, let's test if we can get any data at all
+            Log::info('ERPLY: Testing basic API access');
+            
             $result = $this->makeAuthenticatedRequest('customers', [
                 'request' => json_encode([
                     'getCustomers' => [
@@ -208,15 +211,31 @@ class ErplyService
                     'limit' => $limit,
                     'count' => count($customers),
                     'records_total' => $result['response']['status']['recordsTotal'] ?? 0,
-                    'records_in_response' => $result['response']['status']['recordsInResponse'] ?? 0
+                    'records_in_response' => $result['response']['status']['recordsInResponse'] ?? 0,
+                    'response_status' => $result['response']['status']['responseStatus'] ?? 'unknown'
                 ]);
+                
+                // If no customers, let's try to get user info to verify API access
+                if (empty($customers)) {
+                    Log::info('ERPLY: No customers found, testing API access with verifyUser');
+                    
+                    $userResult = $this->makeAuthenticatedRequest('verifyUser', []);
+                    
+                    if ($userResult['success']) {
+                        Log::info('ERPLY: API Access Verified', [
+                            'user_data' => $userResult['data'] ?? [],
+                            'response_status' => $userResult['response']['status']['responseStatus'] ?? 'unknown'
+                        ]);
+                    }
+                }
                 
                 return $customers;
             }
 
             Log::error('ERPLY Customers API Error', [
                 'error' => $result['error'] ?? 'Unknown error',
-                'status' => $result['status'] ?? 'Unknown status'
+                'status' => $result['status'] ?? 'Unknown status',
+                'full_response' => $result
             ]);
 
             return [];
