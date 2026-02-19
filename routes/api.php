@@ -56,72 +56,98 @@ Route::get('/erply-debug', function () {
         echo "Using Username: $username\n";
         echo "Using Client Code: $clientCode\n\n";
         
-        $ch = curl_init();
-        curl_setopt($ch, CURLOPT_URL, $apiUrl . 'auth/login');
-        curl_setopt($ch, CURLOPT_POST, true);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query([
-            'username' => $username,
-            'password' => $password,
-            'clientCode' => $clientCode
-        ]));
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_TIMEOUT, 30);
-        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        // Test different possible ERPLY authentication endpoints
+        $endpoints = [
+            $apiUrl . 'auth/login',
+            $apiUrl . 'login',
+            $apiUrl . 'api/auth/login',
+            $apiUrl . 'v1/auth/login',
+            $apiUrl . 'v2/auth/login',
+            'https://606950.erply.com/api/v2/auth/login',
+            'https://606950.erply.com/api/auth/login',
+            'https://606950.erply.com/login',
+            'https://606950.erply.com/api/v1/login',
+            'https://606950.erply.com/api/v2/login'
+        ];
         
-        $response = curl_exec($ch);
-        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-        
-        echo "HTTP Status: $httpCode\n";
-        echo "Response: $response\n\n";
-        
-        $data = json_decode($response, true);
-        $sessionToken = $data['session'] ?? $data['session_token'] ?? $data['token'] ?? null;
-        
-        if ($sessionToken) {
-            echo "✅ Authentication successful! Session token: " . substr($sessionToken, 0, 10) . "...\n\n";
-                
-            // Test 2: Get Customers
-            echo "=== Test 2: Get Customers ===\n";
+        foreach ($endpoints as $index => $endpoint) {
+            echo "Testing endpoint " . ($index + 1) . ": $endpoint\n";
+            
             $ch = curl_init();
-            curl_setopt($ch, CURLOPT_URL, $apiUrl . 'customers');
+            curl_setopt($ch, CURLOPT_URL, $endpoint);
             curl_setopt($ch, CURLOPT_POST, true);
             curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query([
-                'request' => json_encode([
-                    'getCustomers' => [
-                        'page' => 1,
-                        'limit' => 10
-                    ]
-                ])
+                'username' => $username,
+                'password' => $password,
+                'clientCode' => $clientCode
             ]));
-            curl_setopt($ch, CURLOPT_HTTPHEADER, [
-                'Authorization: ' . $sessionToken,
-                'Content-Type: application/x-www-form-urlencoded'
-            ]);
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-            curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+            curl_setopt($ch, CURLOPT_TIMEOUT, 10);
             curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-                
+            curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+            
             $response = curl_exec($ch);
             $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $finalUrl = curl_getinfo($ch, CURLINFO_EFFECTIVE_URL);
             curl_close($ch);
+            
+            echo "  HTTP Status: $httpCode\n";
+            echo "  Final URL: $finalUrl\n";
+            echo "  Response: " . substr($response, 0, 200) . "...\n\n";
+            
+            if ($httpCode == 200) {
+                $data = json_decode($response, true);
+                $sessionToken = $data['session'] ?? $data['session_token'] ?? $data['token'] ?? null;
                 
-            echo "HTTP Status: $httpCode\n";
-            echo "Response: $response\n\n";
-                
-            $customerData = json_decode($response, true);
-            $customers = $customerData['data'] ?? $customerData['customers'] ?? [];
-                
-            echo "Customers found: " . count($customers) . "\n";
-                
-            if (!empty($customers)) {
-                echo "\nFirst customer:\n";
-                print_r($customers[0]);
+                if ($sessionToken) {
+                    echo "  ✅ SUCCESS! Session token found: " . substr($sessionToken, 0, 10) . "...\n\n";
+                    
+                    // Test 2: Get Customers with this successful endpoint
+                    echo "=== Test 2: Get Customers ===\n";
+                    $ch = curl_init();
+                    curl_setopt($ch, CURLOPT_URL, $apiUrl . 'customers');
+                    curl_setopt($ch, CURLOPT_POST, true);
+                    curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query([
+                        'request' => json_encode([
+                            'getCustomers' => [
+                                'page' => 1,
+                                'limit' => 10
+                            ]
+                        ])
+                    ]));
+                    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                        'Authorization: ' . $sessionToken,
+                        'Content-Type: application/x-www-form-urlencoded'
+                    ]);
+                    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                    curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+                    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+                        
+                    $response = curl_exec($ch);
+                    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                    curl_close($ch);
+                        
+                    echo "  HTTP Status: $httpCode\n";
+                    echo "  Response: " . substr($response, 0, 200) . "...\n\n";
+                        
+                    $customerData = json_decode($response, true);
+                    $customers = $customerData['data'] ?? $customerData['customers'] ?? [];
+                        
+                    echo "  Customers found: " . count($customers) . "\n";
+                    
+                    if (!empty($customers)) {
+                        echo "  First customer data:\n";
+                        print_r($customers[0]);
+                    }
+                    
+                    // Success! Exit the loop
+                    break;
+                }
             }
-                
-        } else {
-            echo "❌ Authentication failed!\n";
-            echo "Response data: " . json_encode($data) . "\n";
+            
+            if ($httpCode != 200) {
+                echo "  ❌ Failed\n\n";
+            }
         }
             
     } catch (Exception $e) {
