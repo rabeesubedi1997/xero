@@ -341,32 +341,33 @@ class ErplyService
         }
     }
 
-    public function syncCustomersToDatabase(int $page = 1, int $limit = 20, bool $debug = false): array
+public function syncCustomersToDatabase(int $page = 1, int $limit = 20, bool $debug = false): array
 {
     try {
-        Log::info('Starting ERPLY customer sync to database', [
+        Log::info('Starting ERPLY customer sync', [
             'page' => $page,
-            'limit' => $limit
+            'limit' => $limit,
+            'debug' => $debug
         ]);
 
         // Fetch customers from ERPLY
         $customers = $this->getCustomers($page, $limit, $debug ? 1 : 0);
 
+        // If debug is on, just show the customers
         if ($debug) {
-            dd($customers);
+            Log::info('Debug mode: showing customers only', [
+                'customers' => $customers
+            ]);
+            dd($customers); // stop execution and show data
         }
 
-        Log::info('ERPLY Customers Retrieved', [
-            'count' => count($customers),
-            'customers_sample' => array_slice($customers, 0, 2)
-        ]);
-
+        // Otherwise, sync customers to database
         $syncedCount = 0;
         $errorCount = 0;
 
         foreach ($customers as $customerData) {
             try {
-                // Build a full name to avoid DB NOT NULL issues
+                // Build full name fallback
                 $firstName = $customerData['firstName'] ?? '';
                 $lastName = $customerData['lastName'] ?? '';
                 $fullName = trim($firstName . ' ' . $lastName);
@@ -396,7 +397,6 @@ class ErplyService
                 );
 
                 $syncedCount++;
-
                 Log::info('Customer stored successfully', [
                     'erply_customer_id' => $customerData['customerID'],
                     'customer_id' => $customer->id
