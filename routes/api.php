@@ -56,43 +56,56 @@ Route::get('/erply-debug', function () {
         echo "Using Username: $username\n";
         echo "Using Client Code: $clientCode\n\n";
         
-        // Test different possible ERPLY authentication endpoints
-        $endpoints = [
-            $apiUrl . 'auth/login',
-            $apiUrl . 'login',
-            $apiUrl . 'api/auth/login',
-            $apiUrl . 'v1/auth/login',
-            $apiUrl . 'v2/auth/login',
-            'https://606950.erply.com/api/v2/auth/login',
-            'https://606950.erply.com/api/auth/login',
-            'https://606950.erply.com/login',
-            'https://606950.erply.com/api/v1/login',
-            'https://606950.erply.com/api/v2/login'
-        ];
+        // Test correct ERPLY endpoint with proper parameters
+        echo "Testing correct ERPLY endpoint: $apiUrl" . "login\n";
         
-        foreach ($endpoints as $index => $endpoint) {
-            echo "Testing endpoint " . ($index + 1) . ": $endpoint\n";
-            
-            $ch = curl_init();
-            curl_setopt($ch, CURLOPT_URL, $endpoint);
-            curl_setopt($ch, CURLOPT_POST, true);
-            curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query([
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, $apiUrl . 'login');
+        curl_setopt($ch, CURLOPT_POST, true);
+        
+        // Try different parameter formats based on ERPLY documentation
+        $parameterSets = [
+            // Format 1: Standard form data
+            [
                 'username' => $username,
                 'password' => $password,
                 'clientCode' => $clientCode
-            ]));
+            ],
+            // Format 2: With request wrapper
+            [
+                'request' => json_encode([
+                    'username' => $username,
+                    'password' => $password,
+                    'clientCode' => $clientCode
+                ])
+            ],
+            // Format 3: Direct login parameters
+            [
+                'user' => $username,
+                'pass' => $password,
+                'clientCode' => $clientCode
+            ],
+            // Format 4: ERPLY standard format
+            [
+                'username' => $username,
+                'password' => $password,
+                'client_code' => $clientCode
+            ]
+        ];
+        
+        foreach ($parameterSets as $index => $params) {
+            echo "Testing parameter set " . ($index + 1) . ":\n";
+            curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($params));
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-            curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+            curl_setopt($ch, CURLOPT_TIMEOUT, 30);
             curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
             curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
             
             $response = curl_exec($ch);
             $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            $finalUrl = curl_getinfo($ch, CURLINFO_EFFECTIVE_URL);
             curl_close($ch);
             
             echo "  HTTP Status: $httpCode\n";
-            echo "  Final URL: $finalUrl\n";
             echo "  Response: " . substr($response, 0, 200) . "...\n\n";
             
             if ($httpCode == 200) {
@@ -100,7 +113,7 @@ Route::get('/erply-debug', function () {
                 $sessionToken = $data['session'] ?? $data['session_token'] ?? $data['token'] ?? null;
                 
                 if ($sessionToken) {
-                    echo "  ✅ SUCCESS! Session token found: " . substr($sessionToken, 0, 10) . "...\n\n";
+                    echo "  ✅ SUCCESS! Session token: " . substr($sessionToken, 0, 10) . "...\n\n";
                     
                     // Test 2: Get Customers with this successful endpoint
                     echo "=== Test 2: Get Customers ===\n";
@@ -108,6 +121,7 @@ Route::get('/erply-debug', function () {
                     curl_setopt($ch, CURLOPT_URL, $apiUrl . 'customers');
                     curl_setopt($ch, CURLOPT_POST, true);
                     curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query([
+                        'session' => $sessionToken,
                         'request' => json_encode([
                             'getCustomers' => [
                                 'page' => 1,
@@ -116,7 +130,6 @@ Route::get('/erply-debug', function () {
                         ])
                     ]));
                     curl_setopt($ch, CURLOPT_HTTPHEADER, [
-                        'Authorization: ' . $sessionToken,
                         'Content-Type: application/x-www-form-urlencoded'
                     ]);
                     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
@@ -140,13 +153,9 @@ Route::get('/erply-debug', function () {
                         print_r($customers[0]);
                     }
                     
-                    // Success! Exit the loop
+                    // Success! Exit
                     break;
                 }
-            }
-            
-            if ($httpCode != 200) {
-                echo "  ❌ Failed\n\n";
             }
         }
             
