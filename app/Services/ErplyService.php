@@ -6,6 +6,7 @@ use App\Models\ErplyToken;
 use App\Models\ErplyCustomer;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 
 class ErplyService
@@ -34,6 +35,18 @@ class ErplyService
     private function ensureUserAuthorized(): void
     {
         try {
+            // First, ensure database connection
+            Log::info('ERPLY: Checking database connection');
+            
+            // Test database connection
+            $pdo = DB::connection()->getPdo();
+            if (!$pdo) {
+                Log::error('ERPLY: Database connection failed');
+                throw new \Exception('Database connection failed');
+            }
+            
+            Log::info('ERPLY: Database connection successful');
+            
             // Check if user already has valid token in database
             $existingToken = ErplyToken::where('username', $this->username)
                                     ->where('client_code', $this->clientCode)
@@ -73,35 +86,6 @@ class ErplyService
                 'trace' => $e->getTraceAsString()
             ]);
         }
-    }
-
-    /**
-     * Get or create valid ERPLY token
-     */
-    public function getValidToken(): ?string
-    {
-        // Check for existing valid token
-        $token = ErplyToken::getActiveToken($this->username, $this->clientCode);
-        
-        if ($token && $token->isValid()) {
-            Log::info('Using existing valid ERPLY token', [
-                'token_id' => $token->id,
-                'expires_at' => $token->expires_at,
-                'minutes_remaining' => $token->expires_at->diffInMinutes(Carbon::now())
-            ]);
-            
-            // Mark as used
-            $token->markAsUsed();
-            return $token->session_key;
-        }
-        
-        // Need new token
-        Log::info('ERPLY: No valid token found, authenticating', [
-            'username' => $this->username,
-            'client_code' => $this->clientCode
-        ]);
-        
-        return $this->authenticate();
     }
 
     /**
@@ -180,7 +164,7 @@ class ErplyService
                 'deleted_count' => $deleted
             ]);
             
-            // Create new token
+            // Create new token with proper session and expiration time
             $token = ErplyToken::create([
                 'client_code' => $this->clientCode,
                 'username' => $this->username,
@@ -207,65 +191,119 @@ class ErplyService
     }
 
     /**
-     * Make authenticated API request
+     * Get or create valid ERPLY token
      */
-    private function makeAuthenticatedRequest(string $endpoint, array $data = []): array
+    public function getValidToken(): ?string
     {
-        $sessionKey = $this->getValidToken();
-        
-        if (!$sessionKey) {
-            throw new \Exception('No valid ERPLY session available');
-        }
-
-        $requestData = array_merge([
-            'session' => $sessionKey
-        ], $data);
-
-        Log::info('ERPLY: Making authenticated request', [
-            'endpoint' => $endpoint,
-            'session_key' => substr($sessionKey, 0, 10) . '...',
-            'request_data' => $requestData
-        ]);
-
-        $response = Http::asForm()->timeout($this->timeout)
-            ->withHeaders([
-                'Content-Type' => 'application/x-www-form-urlencoded',
-                'Accept' => 'application/json'
-            ])
-            ->post($this->baseUrl . $endpoint, $requestData);
-
-        Log::info('ERPLY: API Response', [
-            'endpoint' => $endpoint,
-            'status' => $response->status(),
-            'body' => $response->body()
-        ]);
-
-        if ($response->successful()) {
-            $responseData = $response->json();
+        try {
+            // Check for existing valid token
+            $token = ErplyToken::getActiveToken($this->username, $this->clientCode);
             
+            if ($token && $token->isValid()) {
+                Log::info('Using existing valid ERPLY token', [
+                    'token_id' => $token->id,
+                    'expires_at' => $token->expires_at,
+                    'minutes_remaining' => $token->expires_at->diffInMinutes(Carbon::now())
+                ]);
+                
+                // Mark as used
+                $token->markAsUsed();
+                return $token->session_key;
+            }
+            
+            // Need new token
+            Log::info('ERPLY: No valid token found, authenticating', [
+                'username' => $this->username,
+                'client_code' => $this->clientCode
+            ]);
+            
+            return $this->authenticate();
+        } catch (\Exception $e) {
+            Log::error('ERPLY: Failed to get valid token', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            return null;
+        }
+    }
+
+    /**
+     * Make authenticated API request using your approach
+     */
+    private function makeAuthenticatedRequest(string $request, array $parameters = [], $isBulk = 0): array
+    {
+        try {
+            $sessionKey = $this->getValidToken();
+            
+            if (!$sessionKey) {
+                throw new \Exception('No valid ERPLY session available');
+            }
+
+            // Add session key and client code to parameters
+            $parameters['sessionKey'] = $sessionKey;
+            $parameters['clientCode'] = $this->clientCode;
+
+            Log::info('ERPLY: Making authenticated request', [
+                'request' => $request,
+                'session_key' => substr($sessionKey, 0, 10) . '...',
+                'parameters' => $parameters,
+                'is_bulk' => $isBulk
+            ]);
+
+            // Use your sendRequest approach
+            $response = Http::asForm()->timeout($this->timeout)
+                ->withHeaders([
+                    'Content-Type' => 'application/x-www-form-urlencoded',
+                    'Accept' => 'application/json'
+                ])
+                ->post('https://606950.erply.com/api/', $parameters);
+
+            Log::info('ERPLY: API Response', [
+                'request' => $request,
+                'status' => $response->status(),
+                'body' => $response->body()
+            ]);
+
+            if ($response->successful()) {
+                $data = $response->json();
+                
+                return [
+                    'success' => true,
+                    'data' => $data['records'] ?? $data['data'] ?? [],
+                    'status' => $data['status'] ?? [],
+                    'response' => $data
+                ];
+            }
+
             return [
-                'success' => true,
-                'data' => $responseData['records'] ?? $responseData['data'] ?? [],
-                'status' => $responseData['status'] ?? [],
-                'response' => $responseData
+                'success' => false,
+                'error' => 'API request failed',
+                'status' => $response->status(),
+                'body' => $response->body()
+            ];
+            
+        } catch (\Exception $e) {
+            Log::error('ERPLY: Authenticated request failed', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            return [
+                'success' => false,
+                'error' => $e->getMessage()
             ];
         }
-
-        return [
-            'success' => false,
-            'error' => 'API request failed',
-            'status' => $response->status(),
-            'body' => $response->body()
-        ];
     }
 
     public function getCustomers($page = 1, $limit = 100): array
     {
         try {
-            // First, let's test if we can get any data at all
-            Log::info('ERPLY: Testing basic API access');
+            Log::info('ERPLY: Getting customers', [
+                'page' => $page,
+                'limit' => $limit
+            ]);
             
-            $result = $this->makeAuthenticatedRequest('customers', [
+            // Use your approach with getCustomers request
+            $result = $this->makeAuthenticatedRequest('getCustomers', [
                 'request' => json_encode([
                     'getCustomers' => [
                         'page' => $page,
@@ -285,20 +323,6 @@ class ErplyService
                     'records_in_response' => $result['response']['status']['recordsInResponse'] ?? 0,
                     'response_status' => $result['response']['status']['responseStatus'] ?? 'unknown'
                 ]);
-                
-                // If no customers, let's try to get user info to verify API access
-                if (empty($customers)) {
-                    Log::info('ERPLY: No customers found, testing API access with verifyUser');
-                    
-                    $userResult = $this->makeAuthenticatedRequest('verifyUser', []);
-                    
-                    if ($userResult['success']) {
-                        Log::info('ERPLY: API Access Verified', [
-                            'user_data' => $userResult['data'] ?? [],
-                            'response_status' => $userResult['response']['status']['responseStatus'] ?? 'unknown'
-                        ]);
-                    }
-                }
                 
                 return $customers;
             }
@@ -489,18 +513,18 @@ class ErplyService
             $syncedCount = 0;
             $errorCount = 0;
             
-            if ($result['success'] && isset($result['requests'])) {
+            if ($result['success'] && isset($result['response']['requests'])) {
                 foreach ($customers as $key => $customer) {
-                    if (isset($result['requests'][$key]) && 
-                        $result['requests'][$key]['status']['errorCode'] == 0) {
+                    if (isset($result['response']['requests'][$key]) && 
+                        $result['response']['requests'][$key]['status']['errorCode'] == 0) {
                         
-                        $customer->erply_customer_id = $result['requests'][$key]['records'][0]['customerID'];
+                        $customer->erply_customer_id = $result['response']['requests'][$key]['records'][0]['customerID'];
                         $customer->erplyPending = 0;
                         $customer->save();
                         $syncedCount++;
                         
                     } else {
-                        $customer->erply_error = json_encode($result['requests'][$key] ?? []);
+                        $customer->erply_error = json_encode($result['response']['requests'][$key] ?? []);
                         $customer->save();
                         $errorCount++;
                     }
@@ -563,7 +587,7 @@ class ErplyService
     }
 
     /**
-     * Send bulk request to ERPLY
+     * Send bulk request to ERPLY (your approach)
      */
     private function sendBulkRequest(array $requests): array
     {
