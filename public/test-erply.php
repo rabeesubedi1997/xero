@@ -3,14 +3,15 @@
 // Test ERPLY API directly based on documentation
 echo "=== ERPLY API Test (Based on Documentation) ===\n\n";
 
-// Load environment
-$dotenv = Dotenv\Dotenv::createImmutable(base_path());
-$dotenv->load();
+// Load Laravel environment properly
+require __DIR__.'/vendor/autoload.php';
+$app = require_once __DIR__.'/bootstrap/app.php';
 
-$apiUrl = $_ENV['ERPLY_API_URL'] ?? 'https://api.erply.com/api/';
-$username = $_ENV['ERPLY_USERNAME'] ?? 'support@retailcare.com.au';
-$password = $_ENV['ERPLY_PASSWORD'] ?? 'NF7c8XUFv0!C';
-$clientCode = $_ENV['ERPLY_CLIENT_CODE'] ?? '606950';
+// Get environment variables from Laravel
+$apiUrl = env('ERPLY_API_URL', 'https://api.erply.com/api/');
+$username = env('ERPLY_USERNAME', 'support@retailcare.com.au');
+$password = env('ERPLY_PASSWORD', 'NF7c8XUFv0!C');
+$clientCode = env('ERPLY_CLIENT_CODE', '606950');
 
 echo "API URL: $apiUrl\n";
 echo "Username: $username\n";
