@@ -13,6 +13,7 @@ class ErplyToken extends Model
         'client_code',
         'username',
         'session_key',
+        'password',
         'jwt_token',
         'expires_at',
         'last_used_at'
