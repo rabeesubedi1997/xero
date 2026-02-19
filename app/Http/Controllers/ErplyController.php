@@ -18,17 +18,24 @@ class ErplyController extends Controller
         $this->xeroSyncService = $xeroSyncService;
     }
 
-   public function syncCustomers(Request $request): JsonResponse
+ public function syncCustomers(Request $request): JsonResponse
 {
     try {
-        $debug = $request->query('debug', false); // ?debug=1
-        $result = $this->erplyService->syncCustomersToDatabase(1, 20, $debug);
-        
+        // Cast debug query parameter to boolean
+        $debug = filter_var($request->query('debug', false), FILTER_VALIDATE_BOOLEAN);
+
+        // Optional: allow page & limit via query params
+        $page = (int) $request->query('page', 1);
+        $limit = (int) $request->query('limit', 20);
+
+        $result = $this->erplyService->syncCustomersToDatabase($page, $limit, $debug);
+
         return response()->json([
             'success' => true,
-            'message' => 'Customer sync completed',
+            'message' => $debug ? 'Customer fetch (debug) completed' : 'Customer sync completed',
             'data' => $result
         ]);
+
     } catch (\Exception $e) {
         return response()->json([
             'success' => false,
