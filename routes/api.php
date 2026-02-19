@@ -5,6 +5,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\XeroAuthController;
 use App\Http\Controllers\AccountController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\ErplyController;
 use App\Http\Controllers\CustomerController;
 
 /*
@@ -35,6 +36,24 @@ Route::middleware('api')->group(function () {
         Route::post('/', [AccountController::class, 'store']);
         Route::put('/{accountId}', [AccountController::class, 'update']);
         Route::delete('/{accountId}', [AccountController::class, 'destroy']);
+    });
+
+    // Xero ERPLY API Routes
+    Route::prefix('erply')->group(function () {
+        Route::post('/sync/customers', [ErplyController::class, 'syncCustomers']);
+        Route::post('/sync/products', [ErplyController::class, 'syncProducts']);
+        Route::post('/sync/full', [ErplyController::class, 'syncFull']);
+        Route::post('/sync/to-xero', [ErplyController::class, 'syncToXero']);
+        Route::post('/sync/customers-to-xero', [ErplyController::class, 'syncCustomersToXero']);
+        Route::post('/sync/products-to-xero', [ErplyController::class, 'syncProductsToXero']);
+        Route::post('/sync/retry-failed', [ErplyController::class, 'retryFailed']);
+        Route::get('/customers', [ErplyController::class, 'getCustomers']);
+        Route::get('/products', [ErplyController::class, 'getProducts']);
+        Route::get('/products/{id}/variations', [ErplyController::class, 'getVariations']);
+        Route::get('/matrices', [ErplyController::class, 'getMatrices']);
+        Route::get('/status', [ErplyController::class, 'getStatus']);
+        Route::get('/sync-history', [ErplyController::class, 'getSyncHistory']);
+        Route::post('/sync/retry/{id}', [ErplyController::class, 'retryFailed']);
     });
 
     // Xero Users API Routes
