@@ -99,7 +99,15 @@ class ErplyService
                 'status' => $authResponse->status(),
                 'body' => $authResponse->body(),
                 'successful' => $authResponse->successful(),
-                'json' => $authResponse->json()
+                'json' => $authResponse->json(),
+                'error_code_1009_meaning' => 'Authentication failed - Check credentials, account status, or client code',
+                'possible_solutions' => [
+                    '1. Verify username and password are correct',
+                    '2. Check ERPLY account is active',
+                    '3. Verify client code 606950 is correct',
+                    '4. Check user has API access permissions',
+                    '5. Contact ERPLY support if credentials are correct'
+                ]
             ]);
 
             if ($authResponse->successful()) {
