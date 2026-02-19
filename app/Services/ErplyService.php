@@ -28,7 +28,7 @@ class ErplyService
     public function authenticate()
     {
         try {
-            // Use the correct ERPLY API format based on our debug findings
+            // Use correct ERPLY API format based on documentation
             $response = Http::asForm()->timeout($this->timeout)->post($this->baseUrl . 'login', [
                 'username' => $this->username,
                 'password' => $this->password,
@@ -82,6 +82,7 @@ class ErplyService
                 'limit' => $limit
             ]);
 
+            // Use correct ERPLY API format based on documentation
             $response = Http::asForm()->timeout($this->timeout)
                 ->withHeaders([
                     'Content-Type' => 'application/x-www-form-urlencoded',
@@ -104,7 +105,9 @@ class ErplyService
 
             if ($response->successful()) {
                 $data = $response->json();
-                $customers = $data['data'] ?? $data['customers'] ?? [];
+                
+                // Check for records array (ERPLY format)
+                $customers = $data['records'] ?? $data['data'] ?? $data['customers'] ?? [];
                 
                 Log::info('ERPLY Customers Retrieved', [
                     'page' => $page,
