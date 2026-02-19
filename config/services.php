@@ -22,6 +22,16 @@ return [
         'key' => env('RESEND_API_KEY'),
     ],
 
+    'erply' => [
+        'api_url' => env('ERPLY_API_URL', 'https://606950.erply.com/api/'),
+        'username' => env('ERPLY_USERNAME', 'support@retailcare.com.au'),
+        'password' => env('ERPLY_PASSWORD', 'NF7c8XUFv0!C'),
+        'client_code' => env('ERPLY_CLIENT_CODE', '606950'),
+        'session_timeout' => env('ERPLY_SESSION_TIMEOUT', 3600),
+        'batch_size' => env('ERPLY_BATCH_SIZE', 100),
+        'rate_limit' => env('ERPLY_RATE_LIMIT', 60),
+    ],
+
     'ses' => [
         'key' => env('AWS_ACCESS_KEY_ID'),
         'secret' => env('AWS_SECRET_ACCESS_KEY'),

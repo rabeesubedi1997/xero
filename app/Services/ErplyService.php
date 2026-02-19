@@ -28,15 +28,19 @@ class ErplyService
     public function authenticate()
     {
         try {
-            $response = Http::timeout($this->timeout)->post($this->baseUrl . 'auth/login', [
+            $response = Http::asForm()->timeout($this->timeout)->post($this->baseUrl . 'auth/login', [
                 'username' => $this->username,
                 'password' => $this->password,
-                'client_code' => $this->clientCode
+                'clientCode' => $this->clientCode
             ]);
 
             if ($response->successful()) {
                 $data = $response->json();
-                return $data['session_token'] ?? null;
+                Log::info('ERPLY Authentication Response', [
+                    'response' => $data,
+                    'status' => $response->status()
+                ]);
+                return $data['session'] ?? $data['session_token'] ?? $data['token'] ?? null;
             }
 
             Log::error('ERPLY Authentication Failed', [
@@ -62,14 +66,20 @@ class ErplyService
                 throw new \Exception('Failed to authenticate with ERPLY');
             }
 
-            $response = Http::timeout($this->timeout)
+            $response = Http::asForm()->timeout($this->timeout)
                 ->withHeaders([
-                    'Authorization' => 'Bearer ' . $sessionToken,
-                    'Content-Type' => 'application/json'
+                    'Authorization' => $sessionToken,
+                    'Content-Type' => 'application/x-www-form-urlencoded'
                 ])
                 ->get($this->baseUrl . 'customers', [
                     'page' => $page,
-                    'limit' => $limit
+                    'limit' => $limit,
+                    'request' => json_encode([
+                        'getCustomers' => [
+                            'page' => $page,
+                            'limit' => $limit
+                        ]
+                    ])
                 ]);
 
             if ($response->successful()) {
@@ -77,9 +87,11 @@ class ErplyService
                 Log::info('ERPLY Customers Retrieved', [
                     'page' => $page,
                     'limit' => $limit,
-                    'count' => count($data['data'] ?? [])
+                    'response_status' => $response->status(),
+                    'response_data' => $data,
+                    'count' => count($data['data'] ?? $data['customers'] ?? [])
                 ]);
-                return $data['data'] ?? [];
+                return $data['data'] ?? $data['customers'] ?? [];
             }
 
             Log::error('ERPLY Customers API Error', [
