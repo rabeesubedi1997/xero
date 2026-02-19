@@ -277,7 +277,7 @@ class ErplyService
         ];
     }
 }
-    public function getCustomers($page = 1, $limit = 100): array
+    public function getCustomers($page = 1, $limit = 100, $debug): array
     {
         try {
             Log::info('ERPLY: Getting customers', [
@@ -318,6 +318,9 @@ class ErplyService
                     'records_in_response' => $result['response']['status']['recordsInResponse'] ?? 0,
                     'response_status' => $result['response']['status']['responseStatus'] ?? 'unknown'
                 ]);
+                if ($debug=1){
+                    dd($customers);
+                }
                 
                 return $customers;
             }
@@ -338,54 +341,97 @@ class ErplyService
         }
     }
 
-    public function syncCustomersToDatabase(): array
-    {
-        try {
-            Log::info('Starting ERPLY customer sync to database');
-            
-            $customers = $this->getCustomers(1, 10);
-            // dd($customers);
-            
-            Log::info('ERPLY Customers Retrieved', [
-                'count' => count($customers),
-                'customers_sample' => array_slice($customers, 0, 2)
-            ]);
-            
-            $syncedCount = 0;
-            $errorCount = 0;
+    public function syncCustomersToDatabase(int $page = 1, int $limit = 20, bool $debug = false): array
+{
+    try {
+        Log::info('Starting ERPLY customer sync to database', [
+            'page' => $page,
+            'limit' => $limit
+        ]);
 
-            foreach ($customers as $customerData) {
-                try {
-                    $this->storeCustomer($customerData);
-                    $syncedCount++;
-                } catch (\Exception $e) {
-                    $errorCount++;
-                    Log::error('Failed to store customer', [
-                        'customer_id' => $customerData['customerID'] ?? 'unknown',
-                        'error' => $e->getMessage()
-                    ]);
-                }
-            }
-            
-            Log::info('ERPLY Customer Sync Completed', [
-                'total_customers' => count($customers),
-                'synced_count' => $syncedCount,
-                'error_count' => $errorCount
-            ]);
-            
-            return [
-                'total' => count($customers),
-                'synced' => $syncedCount,
-                'errors' => $errorCount
-            ];
-        } catch (\Exception $e) {
-            Log::error('ERPLY Customer Sync Failed', [
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
-            ]);
-            throw $e;
+        // Fetch customers from ERPLY
+        $customers = $this->getCustomers($page, $limit, $debug ? 1 : 0);
+
+        if ($debug==1) {
+            dd($customers);
         }
+
+        Log::info('ERPLY Customers Retrieved', [
+            'count' => count($customers),
+            'customers_sample' => array_slice($customers, 0, 2)
+        ]);
+
+        $syncedCount = 0;
+        $errorCount = 0;
+
+        foreach ($customers as $customerData) {
+            try {
+                // Build a full name to avoid DB NOT NULL issues
+                $firstName = $customerData['firstName'] ?? '';
+                $lastName = $customerData['lastName'] ?? '';
+                $fullName = trim($firstName . ' ' . $lastName);
+                if (empty($fullName)) {
+                    $fullName = $customerData['companyName'] ?? 'Unknown Customer';
+                }
+
+                // Insert or update customer
+                $customer = ErplyCustomer::updateOrCreate(
+                    ['erply_customer_id' => $customerData['customerID']],
+                    [
+                        'name' => $fullName,
+                        'first_name' => $firstName ?: null,
+                        'last_name' => $lastName ?: null,
+                        'company_name' => $customerData['companyName'] ?? null,
+                        'email' => $customerData['email'] ?? null,
+                        'phone' => $customerData['phone'] ?? null,
+                        'mobile' => $customerData['mobile'] ?? null,
+                        'address' => $customerData['address'] ?? null,
+                        'city' => $customerData['city'] ?? null,
+                        'state' => $customerData['state'] ?? null,
+                        'post_code' => $customerData['postCode'] ?? null,
+                        'country' => $customerData['country'] ?? null,
+                        'sync_status' => 'pending',
+                        'raw_erply_data' => json_encode($customerData)
+                    ]
+                );
+
+                $syncedCount++;
+
+                Log::info('Customer stored successfully', [
+                    'erply_customer_id' => $customerData['customerID'],
+                    'customer_id' => $customer->id
+                ]);
+
+            } catch (\Exception $e) {
+                $errorCount++;
+                Log::error('Failed to store customer', [
+                    'customer_id' => $customerData['customerID'] ?? 'unknown',
+                    'error' => $e->getMessage(),
+                    'customer_data' => $customerData
+                ]);
+            }
+        }
+
+        Log::info('ERPLY Customer Sync Completed', [
+            'total_customers' => count($customers),
+            'synced_count' => $syncedCount,
+            'error_count' => $errorCount
+        ]);
+
+        return [
+            'total' => count($customers),
+            'synced' => $syncedCount,
+            'errors' => $errorCount
+        ];
+
+    } catch (\Exception $e) {
+        Log::error('ERPLY Customer Sync Failed', [
+            'error' => $e->getMessage(),
+            'trace' => $e->getTraceAsString()
+        ]);
+        throw $e;
     }
+}
 
     private function storeCustomer(array $customerData): void
     {
