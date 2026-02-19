@@ -56,121 +56,163 @@ Route::get('/erply-debug', function () {
         echo "Using Username: $username\n";
         echo "Using Client Code: $clientCode\n\n";
         
-        // ERPLY API format based on documentation
-        echo "Testing ERPLY API with correct format:\n";
+        // Test different ERPLY authentication methods
+        echo "Testing different ERPLY authentication methods:\n\n";
         
-        // ERPLY uses specific request format
-        $requestData = [
-            'username' => $username,
-            'password' => $password,
-            'clientCode' => $clientCode
+        $methods = [
+            // Method 1: Standard ERPLY format
+            [
+                'name' => 'Standard ERPLY format',
+                'data' => [
+                    'username' => $username,
+                    'password' => $password,
+                    'clientCode' => $clientCode
+                ]
+            ],
+            // Method 2: Without clientCode
+            [
+                'name' => 'Without clientCode',
+                'data' => [
+                    'username' => $username,
+                    'password' => $password
+                ]
+            ],
+            // Method 3: Different parameter names
+            [
+                'name' => 'Alternative parameter names',
+                'data' => [
+                    'user' => $username,
+                    'pass' => $password,
+                    'client_code' => $clientCode
+                ]
+            ],
+            // Method 4: Email as username
+            [
+                'name' => 'Email as username',
+                'data' => [
+                    'username' => $username,
+                    'password' => $password,
+                    'clientCode' => $clientCode
+                ]
+            ],
+            // Method 5: Direct form post (no JSON)
+            [
+                'name' => 'Direct form post',
+                'data' => [
+                    'username' => $username,
+                    'password' => $password,
+                    'clientCode' => $clientCode
+                ]
+            ]
         ];
         
-        echo "Request data: " . json_encode($requestData) . "\n\n";
-        
-        $ch = curl_init();
-        curl_setopt($ch, CURLOPT_URL, $apiUrl . 'login');
-        curl_setopt($ch, CURLOPT_POST, true);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query([
-            'request' => json_encode($requestData)
-        ]));
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_TIMEOUT, 30);
-        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-        curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
-        curl_setopt($ch, CURLOPT_HTTPHEADER, [
-            'Content-Type: application/x-www-form-urlencoded',
-            'Accept: application/json'
-        ]);
-        
-        $response = curl_exec($ch);
-        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-        
-        echo "HTTP Status: $httpCode\n";
-        echo "Full Response: $response\n\n";
-        
-        if ($httpCode == 200) {
-            $data = json_decode($response, true);
+        foreach ($methods as $index => $method) {
+            echo "=== Method " . ($index + 1) . ": " . $method['name'] . " ===\n";
             
-            // Check for different possible session token locations
-            $sessionToken = $data['session'] ?? $data['session_token'] ?? $data['token'] ?? $data['sessionKey'] ?? null;
-            
-            echo "Parsed session token: " . ($sessionToken ? substr($sessionToken, 0, 10) . '...' : 'NULL') . "\n\n";
-            
-            if ($sessionToken) {
-                echo "✅ SUCCESS! Session token found.\n\n";
-                
-                // Test 2: Get Customers with this successful endpoint
-                echo "=== Test 2: Get Customers ===\n";
+            if ($method['name'] === 'Direct form post') {
+                // Direct form post without JSON wrapper
                 $ch = curl_init();
-                curl_setopt($ch, CURLOPT_URL, $apiUrl . 'customers');
+                curl_setopt($ch, CURLOPT_URL, $apiUrl . 'login');
                 curl_setopt($ch, CURLOPT_POST, true);
-                curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query([
-                    'session' => $sessionToken,
-                    'request' => json_encode([
-                        'getCustomers' => [
-                            'page' => 1,
-                            'limit' => 10
-                        ]
-                    ])
-                ]));
+                curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($method['data']));
+                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+                curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
                 curl_setopt($ch, CURLOPT_HTTPHEADER, [
                     'Content-Type: application/x-www-form-urlencoded',
                     'Accept: application/json'
                 ]);
-                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-                curl_setopt($ch, CURLOPT_TIMEOUT, 30);
-                curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-                    
-                $response = curl_exec($ch);
-                $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-                curl_close($ch);
-                    
-                echo "HTTP Status: $httpCode\n";
-                echo "Response: " . substr($response, 0, 500) . "...\n\n";
-                    
-                $customerData = json_decode($response, true);
-                $customers = $customerData['data'] ?? $customerData['customers'] ?? [];
-                    
-                echo "Customers found: " . count($customers) . "\n";
-                
-                if (!empty($customers)) {
-                    echo "First customer data:\n";
-                    print_r($customers[0]);
-                }
-                
             } else {
-                echo "❌ No session token found in response\n";
-                echo "Response structure:\n";
-                print_r($data);
-                
-                // Try alternative authentication methods
-                echo "\n=== Alternative Authentication Methods ===\n";
-                
-                // Method 1: Try without clientCode
-                echo "Testing without clientCode...\n";
+                // JSON wrapper format
                 $ch = curl_init();
                 curl_setopt($ch, CURLOPT_URL, $apiUrl . 'login');
                 curl_setopt($ch, CURLOPT_POST, true);
                 curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query([
-                    'request' => json_encode([
-                        'username' => $username,
-                        'password' => $password
-                    ])
+                    'request' => json_encode($method['data'])
                 ]));
                 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
                 curl_setopt($ch, CURLOPT_TIMEOUT, 30);
                 curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+                curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                    'Content-Type: application/x-www-form-urlencoded',
+                    'Accept: application/json'
+                ]);
+            }
+            
+            $response = curl_exec($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            curl_close($ch);
+            
+            echo "HTTP Status: $httpCode\n";
+            echo "Response: " . substr($response, 0, 300) . "...\n\n";
+            
+            if ($httpCode == 200) {
+                $data = json_decode($response, true);
                 
-                $response = curl_exec($ch);
-                $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-                curl_close($ch);
+                // Check for different possible session token locations
+                $sessionToken = $data['session'] ?? $data['session_token'] ?? $data['token'] ?? $data['sessionKey'] ?? null;
                 
-                echo "HTTP Status: $httpCode\n";
-                echo "Response: " . substr($response, 0, 200) . "...\n\n";
+                if ($sessionToken) {
+                    echo "✅ SUCCESS! Session token found: " . substr($sessionToken, 0, 10) . "...\n\n";
+                    
+                    // Test 2: Get Customers with this successful endpoint
+                    echo "=== Test 2: Get Customers ===\n";
+                    $ch = curl_init();
+                    curl_setopt($ch, CURLOPT_URL, $apiUrl . 'customers');
+                    curl_setopt($ch, CURLOPT_POST, true);
+                    curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query([
+                        'session' => $sessionToken,
+                        'request' => json_encode([
+                            'getCustomers' => [
+                                'page' => 1,
+                                'limit' => 10
+                            ]
+                        ])
+                    ]));
+                    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                        'Content-Type: application/x-www-form-urlencoded',
+                        'Accept: application/json'
+                    ]);
+                    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                    curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+                    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+                        
+                    $response = curl_exec($ch);
+                    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                    curl_close($ch);
+                        
+                    echo "HTTP Status: $httpCode\n";
+                    echo "Response: " . substr($response, 0, 500) . "...\n\n";
+                        
+                    $customerData = json_decode($response, true);
+                    $customers = $customerData['data'] ?? $customerData['customers'] ?? [];
+                        
+                    echo "Customers found: " . count($customers) . "\n";
+                    
+                    if (!empty($customers)) {
+                        echo "First customer data:\n";
+                        print_r($customers[0]);
+                    }
+                    
+                    // Success! Exit the loop
+                    break;
+                }
             }
         }
+        
+        // If all methods failed, provide troubleshooting info
+        echo "\n=== Troubleshooting Information ===\n";
+        echo "If all authentication methods fail with errorCode:1009, this usually means:\n";
+        echo "1. Incorrect username/password combination\n";
+        echo "2. Account is locked or disabled\n";
+        echo "3. Client code is incorrect\n";
+        echo "4. API access is not enabled for this account\n";
+        echo "5. IP restrictions on the ERPLY account\n\n";
+        echo "Please verify:\n";
+        echo "- Username: $username\n";
+        echo "- Client Code: $clientCode\n";
+        echo "- API access is enabled in ERPLY admin panel\n";
+        echo "- Account is active and not locked\n";
             
     } catch (Exception $e) {
         echo "❌ Exception: " . $e->getMessage() . "\n";
