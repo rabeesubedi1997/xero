@@ -313,9 +313,10 @@ class ErplyService
             // Use your approach with getCustomers request
             $result = $this->makeAuthenticatedRequest('getCustomers', [
                 'page' => $page,
-                'limit' => $limit
+                'limit' => $limit,
+                'sessionKey' => $sessionKey
             ]);
-            // dd($result);
+            dd($result);
 
             if ($result['success']) {
                 $customers = $result['data'] ?? [];
