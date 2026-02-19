@@ -277,71 +277,68 @@ class ErplyService
         ];
     }
 }
-    public function getCustomers($page = 1, $limit = 100, $debug): array
-    {
-        try {
-            Log::info('ERPLY: Getting customers', [
-                'page' => $page,
-                'limit' => $limit
-            ]);
-            
-            // First, ensure we have a valid session
-            $sessionKey = $this->getValidToken();
+    public function getCustomers(int $page = 1, int $limit = 100, bool $debug = false): array
+{
+    try {
+        Log::info('ERPLY: Getting customers', [
+            'page' => $page,
+            'limit' => $limit
+        ]);
+
+        // Ensure valid session
+        $sessionKey = $this->getValidToken();
+        if (!$sessionKey) {
+            Log::warning('ERPLY: No valid session, authenticating...');
+            $sessionKey = $this->authenticate();
             if (!$sessionKey) {
-                Log::error('ERPLY: No valid session available, forcing authentication');
-                $sessionKey = $this->authenticate();
-                if (!$sessionKey) {
-                    Log::error('ERPLY: Authentication failed completely');
-                    return [];
-                }
+                Log::error('ERPLY: Authentication failed, cannot fetch customers');
+                return [];
             }
-            
-            Log::info('ERPLY: Using session key', [
-                'session_key' => substr($sessionKey, 0, 10) . '...'
-            ]);
-            
-            // Use your approach with getCustomers request
-            $result = $this->makeAuthenticatedRequest('getCustomers', [
-                'page' => $page,
-                'limit' => $limit
-            ]);
-            // dd($result);
-
-            if ($result['success']) {
-                $customers = $result['data'] ?? [];
-                
-                Log::info('ERPLY Customers Retrieved', [
-                    'page' => $page,
-                    'limit' => $limit,
-                    'count' => count($customers),
-                    'records_total' => $result['response']['status']['recordsTotal'] ?? 0,
-                    'records_in_response' => $result['response']['status']['recordsInResponse'] ?? 0,
-                    'response_status' => $result['response']['status']['responseStatus'] ?? 'unknown'
-                ]);
-                if ($debug) {
-                    return $customers;
-                }
-                
-                return $customers;
-            }
-
-            Log::error('ERPLY Customers API Error', [
-                'error' => $result['error'] ?? 'Unknown error',
-                'status' => $result['status'] ?? 'Unknown status',
-                'full_response' => $result
-            ]);
-
-            return [];
-        } catch (\Exception $e) {
-            Log::error('ERPLY Customers Exception', [
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
-            ]);
-            return [];
         }
-    }
 
-public function syncCustomersToDatabase(int $page = 1, int $limit = 20, bool $debug = false): array
+        // Correct pagination parameters for ERPLY API
+        $result = $this->makeAuthenticatedRequest('getCustomers', [
+            'pageNo' => $page,           // Correct parameter
+            'recordsOnPage' => $limit    // Correct parameter
+        ]);
+
+        if ($result['success']) {
+            $customers = $result['data'] ?? [];
+
+            Log::info('ERPLY Customers Retrieved', [
+                'page' => $page,
+                'count' => count($customers),
+                'records_total' => $result['response']['status']['recordsTotal'] ?? 0,
+                'records_in_response' => $result['response']['status']['recordsInResponse'] ?? 0
+            ]);
+
+            if ($debug) {
+                // Only show in debug mode
+                Log::info('Debug mode: customers fetched', [
+                    'customers' => $customers
+                ]);
+            }
+
+            return $customers;
+        }
+
+        Log::error('ERPLY Customers API Error', [
+            'error' => $result['error'] ?? 'Unknown error',
+            'full_response' => $result
+        ]);
+
+        return [];
+
+    } catch (\Exception $e) {
+        Log::error('ERPLY Customers Exception', [
+            'error' => $e->getMessage(),
+            'trace' => $e->getTraceAsString()
+        ]);
+        return [];
+    }
+}
+
+public function syncCustomersToDatabase(int $page = 1, int $limit = 100, bool $debug = false): array
 {
     try {
         Log::info('Starting ERPLY customer sync', [
@@ -350,14 +347,11 @@ public function syncCustomersToDatabase(int $page = 1, int $limit = 20, bool $de
             'debug' => $debug
         ]);
 
-        // Fetch customers from ERPLY
-        $customers = $this->getCustomers($page, $limit, $debug ? 1 : 0);
+        // Fetch customers
+        $customers = $this->getCustomers($page, $limit, $debug);
 
-        // If debug is on, just return the customers without inserting/updating
+        // Debug mode: just return fetched customers
         if ($debug) {
-            Log::info('Debug mode: showing customers only', [
-                'customers_count' => count($customers)
-            ]);
             return [
                 'total' => count($customers),
                 'debug' => true,
@@ -365,17 +359,22 @@ public function syncCustomersToDatabase(int $page = 1, int $limit = 20, bool $de
             ];
         }
 
-        // Otherwise, sync customers to database
+        if (empty($customers)) {
+            return [
+                'total' => 0,
+                'synced' => 0,
+                'errors' => 0
+            ];
+        }
+
         $syncedCount = 0;
         $errorCount = 0;
 
         foreach ($customers as $customerData) {
             try {
-                // Build full name fallback
                 $firstName = $customerData['firstName'] ?? '';
                 $lastName = $customerData['lastName'] ?? '';
                 $fullName = trim($firstName . ' ' . $lastName);
-
                 if (empty($fullName)) {
                     $fullName = $customerData['companyName'] ?? 'Unknown Customer';
                 }
@@ -402,10 +401,6 @@ public function syncCustomersToDatabase(int $page = 1, int $limit = 20, bool $de
                 );
 
                 $syncedCount++;
-                Log::info('Customer stored successfully', [
-                    'erply_customer_id' => $customerData['customerID'],
-                    'customer_id' => $customer->id
-                ]);
 
             } catch (\Exception $e) {
                 $errorCount++;
