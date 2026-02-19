@@ -50,6 +50,7 @@ class ErplyService
             // Generate session key first and store in database
             Log::info('ERPLY: Generating session key first');
             $sessionKey = $this->authenticate();
+            dd($sessionKey);
             
             if ($sessionKey) {
                 Log::info('ERPLY: Session key generated and stored successfully', [
