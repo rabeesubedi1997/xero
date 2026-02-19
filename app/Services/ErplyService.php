@@ -318,8 +318,8 @@ class ErplyService
                     'records_in_response' => $result['response']['status']['recordsInResponse'] ?? 0,
                     'response_status' => $result['response']['status']['responseStatus'] ?? 'unknown'
                 ]);
-                if ($debug=1){
-                    dd($customers);
+                if ($debug) {
+                    return $customers;
                 }
                 
                 return $customers;
