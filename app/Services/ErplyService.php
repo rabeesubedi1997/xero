@@ -47,48 +47,17 @@ class ErplyService
             
             Log::info('ERPLY: Database connection successful');
             
-            // Test direct authentication first
-            Log::info('ERPLY: Testing direct authentication');
-            $testSessionKey = $this->authenticate();
-            if ($testSessionKey) {
-                Log::info('ERPLY: Direct authentication successful', [
-                    'session_key' => substr($testSessionKey, 0, 10) . '...'
-                ]);
-            } else {
-                Log::error('ERPLY: Direct authentication failed');
-            }
-            
-            // Check if user already has valid token in database
-            $existingToken = ErplyToken::where('username', $this->username)
-                                    ->where('client_code', $this->clientCode)
-                                    ->where('expires_at', '>', Carbon::now())
-                                    ->first();
-            
-            if ($existingToken) {
-                Log::info('ERPLY: User already authorized with valid token', [
-                    'token_id' => $existingToken->id,
-                    'expires_at' => $existingToken->expires_at
-                ]);
-                return;
-            }
-            
-            // Authenticate and store new token
-            Log::info('ERPLY: Authorizing user and storing session key', [
-                'username' => $this->username,
-                'client_code' => $this->clientCode
-            ]);
-            
+            // Generate session key first and store in database
+            Log::info('ERPLY: Generating session key first');
             $sessionKey = $this->authenticate();
             
             if ($sessionKey) {
-                Log::info('ERPLY: User authorized and session key stored', [
+                Log::info('ERPLY: Session key generated and stored successfully', [
                     'session_key' => substr($sessionKey, 0, 10) . '...'
                 ]);
             } else {
-                Log::error('ERPLY: Failed to authorize user', [
-                    'username' => $this->username,
-                    'client_code' => $this->clientCode
-                ]);
+                Log::error('ERPLY: Failed to generate session key');
+                throw new \Exception('Failed to generate ERPLY session key');
             }
             
         } catch (\Exception $e) {
@@ -211,19 +180,18 @@ class ErplyService
                 'client_code' => $this->clientCode
             ]);
             
-            // First, try to get existing valid token from database
+            // Always get the most recent token from database
             $token = ErplyToken::where('username', $this->username)
                             ->where('client_code', $this->clientCode)
-                            ->where('expires_at', '>', Carbon::now())
-                            ->orderBy('expires_at', 'desc')
+                            ->orderBy('created_at', 'desc')
                             ->first();
             
             if ($token && $token->session_key) {
-                Log::info('ERPLY: Found valid token in database', [
+                Log::info('ERPLY: Found stored session key in database', [
                     'token_id' => $token->id,
                     'session_key' => substr($token->session_key, 0, 10) . '...',
                     'expires_at' => $token->expires_at,
-                    'minutes_remaining' => $token->expires_at->diffInMinutes(Carbon::now())
+                    'is_expired' => $token->expires_at->isPast()
                 ]);
                 
                 // Mark as used
@@ -233,19 +201,7 @@ class ErplyService
                 return $token->session_key;
             }
             
-            // No valid token found, authenticate and store new one
-            Log::info('ERPLY: No valid token found, authenticating and storing new token');
-            
-            $sessionKey = $this->authenticate();
-            
-            if ($sessionKey) {
-                Log::info('ERPLY: New token created and stored', [
-                    'session_key' => substr($sessionKey, 0, 10) . '...'
-                ]);
-                return $sessionKey;
-            }
-            
-            Log::error('ERPLY: Failed to create new token');
+            Log::error('ERPLY: No session key found in database');
             return null;
             
         } catch (\Exception $e) {
