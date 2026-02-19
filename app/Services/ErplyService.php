@@ -269,10 +269,6 @@ class ErplyService
                 throw new \Exception('No valid ERPLY session available');
             }
 
-            // Add session key and client code to parameters
-            $parameters['sessionKey'] = $sessionKey;
-            $parameters['clientCode'] = $this->clientCode;
-
             Log::info('ERPLY: Making authenticated request', [
                 'request' => $request,
                 'session_key' => substr($sessionKey, 0, 10) . '...',
@@ -280,13 +276,25 @@ class ErplyService
                 'is_bulk' => $isBulk
             ]);
 
-            // Use your sendRequest approach
+            // Use your approach - send session as separate parameter
+            $requestParams = [
+                'sessionKey' => $sessionKey,
+                'clientCode' => $this->clientCode,
+                'request' => json_encode([
+                    $request => $parameters
+                ])
+            ];
+
+            Log::info('ERPLY: Request parameters', [
+                'request_params' => $requestParams
+            ]);
+
             $response = Http::asForm()->timeout($this->timeout)
                 ->withHeaders([
                     'Content-Type' => 'application/x-www-form-urlencoded',
                     'Accept' => 'application/json'
                 ])
-                ->post('https://606950.erply.com/api/', $parameters);
+                ->post('https://606950.erply.com/api/', $requestParams);
 
             Log::info('ERPLY: API Response', [
                 'request' => $request,
@@ -349,12 +357,8 @@ class ErplyService
             
             // Use your approach with getCustomers request
             $result = $this->makeAuthenticatedRequest('getCustomers', [
-                'request' => json_encode([
-                    'getCustomers' => [
-                        'page' => $page,
-                        'limit' => $limit
-                    ]
-                ])
+                'page' => $page,
+                'limit' => $limit
             ]);
             dd($result);
 
