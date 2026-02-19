@@ -120,6 +120,7 @@ class ErplyService
         ErplyToken::create([
             'client_code' => $this->clientCode,
             'username' => $this->username,
+            'password' => $this->password, // Add password field
             'session_key' => $sessionKey,
             'jwt_token' => $responseData['jwt'] ?? null,
             'expires_at' => Carbon::now()->addHours(1), // 1 hour expiry
