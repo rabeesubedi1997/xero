@@ -1,7 +1,7 @@
 <?php
 
-// Test ERPLY API directly
-echo "=== ERPLY API Test ===\n\n";
+// Test ERPLY API directly based on documentation
+echo "=== ERPLY API Test (Based on Documentation) ===\n\n";
 
 // Load environment
 $dotenv = Dotenv\Dotenv::createImmutable(base_path());
@@ -16,7 +16,7 @@ echo "API URL: $apiUrl\n";
 echo "Username: $username\n";
 echo "Client Code: $clientCode\n\n";
 
-// Test authentication
+// Test authentication using ERPLY format
 echo "=== Authentication Test ===\n";
 
 $ch = curl_init();
@@ -46,14 +46,14 @@ echo "Response: " . substr($response, 0, 500) . "...\n\n";
 if ($httpCode == 200) {
     $data = json_decode($response, true);
     
-    // Check for session key
+    // Check for session key in response
     $sessionKey = $data['session'] ?? $data['session_key'] ?? $data['sessionKey'] ?? null;
     
     if ($sessionKey) {
         echo "✅ SUCCESS! Session key: " . substr($sessionKey, 0, 10) . "...\n\n";
         
-        // Test customers
-        echo "=== Customers Test ===\n";
+        // Test customers using ERPLY format
+        echo "=== Customers Test (ERPLY Format) ===\n";
         
         $ch2 = curl_init();
         curl_setopt($ch2, CURLOPT_URL, $apiUrl . 'customers');
@@ -84,19 +84,28 @@ if ($httpCode == 200) {
         
         if ($httpCode2 == 200) {
             $customerData = json_decode($response2, true);
-            $customers = $customerData['data'] ?? $customerData['customers'] ?? [];
+            
+            // Check for records array (ERPLY format)
+            $customers = $customerData['records'] ?? $customerData['data'] ?? $customerData['customers'] ?? [];
             
             echo "Customers found: " . count($customers) . "\n";
             
             if (!empty($customers)) {
                 echo "First customer:\n";
                 print_r($customers[0]);
+            } else {
+                echo "No customers found in response\n";
+                echo "Full response structure:\n";
+                print_r($customerData);
             }
         } else {
-            echo "❌ Failed to get customers\n";
+            echo "❌ Failed to get customers (HTTP $httpCode2)\n";
         }
     } else {
         echo "❌ Authentication failed\n";
+        echo "Full response: " . $response . "\n\n";
+        echo "Response structure:\n";
+        print_r($data);
     }
 } else {
     echo "❌ Authentication failed (HTTP $httpCode)\n";
