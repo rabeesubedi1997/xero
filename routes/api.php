@@ -19,6 +19,101 @@ use App\Http\Controllers\CustomerController;
 |
 */
 
+// ERPLY Debug Route (outside API middleware for easier access)
+Route::get('/erply-debug', function () {
+    $env = [
+        'ERPLY_API_URL' => config('services.erply.api_url'),
+        'ERPLY_USERNAME' => config('services.erply.username'),
+        'ERPLY_PASSWORD' => str_repeat('*', strlen(config('services.erply.password'))),
+        'ERPLY_CLIENT_CODE' => config('services.erply.client_code'),
+    ];
+
+    echo "=== ERPLY API Debug ===\n\n";
+    echo "Configuration:\n";
+    foreach ($env as $key => $value) {
+        echo "$key: $value\n";
+    }
+    echo "\n";
+
+    // Test 1: Authentication
+    echo "=== Test 1: Authentication ===\n";
+    try {
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, config('services.erply.api_url') . 'auth/login');
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query([
+            'username' => config('services.erply.username'),
+            'password' => config('services.erply.password'),
+            'clientCode' => config('services.erply.client_code')
+        ]));
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+        
+        echo "HTTP Status: $httpCode\n";
+        echo "Response: $response\n\n";
+        
+        $data = json_decode($response, true);
+        $sessionToken = $data['session'] ?? $data['session_token'] ?? $data['token'] ?? null;
+        
+        if ($sessionToken) {
+            echo "✅ Authentication successful! Session token: " . substr($sessionToken, 0, 10) . "...\n\n";
+                
+            // Test 2: Get Customers
+            echo "=== Test 2: Get Customers ===\n";
+            $ch = curl_init();
+            curl_setopt($ch, CURLOPT_URL, config('services.erply.api_url') . 'customers');
+            curl_setopt($ch, CURLOPT_POST, true);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query([
+                'request' => json_encode([
+                    'getCustomers' => [
+                        'page' => 1,
+                        'limit' => 10
+                    ]
+                ])
+            ]));
+            curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                'Authorization: ' . $sessionToken,
+                'Content-Type: application/x-www-form-urlencoded'
+            ]);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+                
+            $response = curl_exec($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            curl_close($ch);
+                
+            echo "HTTP Status: $httpCode\n";
+            echo "Response: $response\n\n";
+                
+            $customerData = json_decode($response, true);
+            $customers = $customerData['data'] ?? $customerData['customers'] ?? [];
+                
+            echo "Customers found: " . count($customers) . "\n";
+                
+            if (!empty($customers)) {
+                echo "\nFirst customer:\n";
+                print_r($customers[0]);
+            }
+                
+        } else {
+            echo "❌ Authentication failed!\n";
+            echo "Response data: " . json_encode($data) . "\n";
+        }
+            
+    } catch (Exception $e) {
+        echo "❌ Exception: " . $e->getMessage() . "\n";
+    }
+
+    echo "\n=== Debug Complete ===\n";
+    return response('Debug complete');
+});
+
 Route::middleware('api')->group(function () {
     // Xero Authentication Routes
     Route::prefix('oauth')->group(function () {
@@ -36,101 +131,6 @@ Route::middleware('api')->group(function () {
         Route::post('/', [AccountController::class, 'store']);
         Route::put('/{accountId}', [AccountController::class, 'update']);
         Route::delete('/{accountId}', [AccountController::class, 'destroy']);
-    });
-
-    // ERPLY Debug Route (for testing)
-    Route::get('/erply-debug', function () {
-        $env = [
-            'ERPLY_API_URL' => config('services.erply.api_url'),
-            'ERPLY_USERNAME' => config('services.erply.username'),
-            'ERPLY_PASSWORD' => str_repeat('*', strlen(config('services.erply.password'))),
-            'ERPLY_CLIENT_CODE' => config('services.erply.client_code'),
-        ];
-
-        echo "=== ERPLY API Debug ===\n\n";
-        echo "Configuration:\n";
-        foreach ($env as $key => $value) {
-            echo "$key: $value\n";
-        }
-        echo "\n";
-
-        // Test 1: Authentication
-        echo "=== Test 1: Authentication ===\n";
-        try {
-            $ch = curl_init();
-            curl_setopt($ch, CURLOPT_URL, config('services.erply.api_url') . 'auth/login');
-            curl_setopt($ch, CURLOPT_POST, true);
-            curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query([
-                'username' => config('services.erply.username'),
-                'password' => config('services.erply.password'),
-                'clientCode' => config('services.erply.client_code')
-            ]));
-            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-            curl_setopt($ch, CURLOPT_TIMEOUT, 30);
-            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-            
-            $response = curl_exec($ch);
-            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            curl_close($ch);
-            
-            echo "HTTP Status: $httpCode\n";
-            echo "Response: $response\n\n";
-            
-            $data = json_decode($response, true);
-            $sessionToken = $data['session'] ?? $data['session_token'] ?? $data['token'] ?? null;
-            
-            if ($sessionToken) {
-                echo "✅ Authentication successful! Session token: " . substr($sessionToken, 0, 10) . "...\n\n";
-                
-                // Test 2: Get Customers
-                echo "=== Test 2: Get Customers ===\n";
-                $ch = curl_init();
-                curl_setopt($ch, CURLOPT_URL, config('services.erply.api_url') . 'customers');
-                curl_setopt($ch, CURLOPT_POST, true);
-                curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query([
-                    'request' => json_encode([
-                        'getCustomers' => [
-                            'page' => 1,
-                            'limit' => 10
-                        ]
-                    ])
-                ]));
-                curl_setopt($ch, CURLOPT_HTTPHEADER, [
-                    'Authorization: ' . $sessionToken,
-                    'Content-Type: application/x-www-form-urlencoded'
-                ]);
-                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-                curl_setopt($ch, CURLOPT_TIMEOUT, 30);
-                curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-                
-                $response = curl_exec($ch);
-                $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-                curl_close($ch);
-                
-                echo "HTTP Status: $httpCode\n";
-                echo "Response: $response\n\n";
-                
-                $customerData = json_decode($response, true);
-                $customers = $customerData['data'] ?? $customerData['customers'] ?? [];
-                
-                echo "Customers found: " . count($customers) . "\n";
-                
-                if (!empty($customers)) {
-                    echo "\nFirst customer:\n";
-                    print_r($customers[0]);
-                }
-                
-            } else {
-                echo "❌ Authentication failed!\n";
-                echo "Response data: " . json_encode($data) . "\n";
-            }
-            
-        } catch (Exception $e) {
-            echo "❌ Exception: " . $e->getMessage() . "\n";
-        }
-
-        echo "\n=== Debug Complete ===\n";
-        return response('Debug complete');
     });
 
     // Xero ERPLY API Routes
