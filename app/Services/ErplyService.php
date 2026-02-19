@@ -215,78 +215,68 @@ class ErplyService
     /**
      * Make authenticated API request using your approach
      */
-    private function makeAuthenticatedRequest(string $request, array $parameters = [], $isBulk = 0): array
-    {
-        try {
-            $sessionKey = $this->getValidToken();
-            
-            if (!$sessionKey) {
-                throw new \Exception('No valid ERPLY session available');
-            }
+    private function makeAuthenticatedRequest(string $request, array $parameters = []): array
+{
+    try {
+        $sessionKey = $this->getValidToken();
 
-            Log::info('ERPLY: Making authenticated request', [
-                'request' => $request,
-                'session_key' => substr($sessionKey, 0, 10) . '...',
-                'parameters' => $parameters,
-                'is_bulk' => $isBulk
-            ]);
+        if (!$sessionKey) {
+            throw new \Exception('No valid ERPLY session available');
+        }
 
-            // Use your approach - send session as separate parameter
-            $requestParams = [
-                'sessionKey' => $sessionKey,
-                'clientCode' => $this->clientCode,
-                'request' => json_encode([
-                    $request => $parameters
-                ])
-            ];
+        $requestParams = array_merge($parameters, [
+            'clientCode'  => $this->clientCode,
+            'sessionKey'  => $sessionKey,
+            'request'     => $request,
+            'responseType'=> 'json'
+        ]);
 
-            Log::info('ERPLY: Request parameters', [
-                'request_params' => $requestParams
-            ]);
+        Log::info('ERPLY: Correct API Request', [
+            'params' => $requestParams
+        ]);
 
-            $response = Http::asForm()->timeout($this->timeout)
-                ->withHeaders([
-                    'Content-Type' => 'application/x-www-form-urlencoded',
-                    'Accept' => 'application/json'
-                ])
-                ->post('https://606950.erply.com/api/', $requestParams);
+        $response = Http::asForm()
+            ->timeout($this->timeout)
+            ->post($this->baseUrl, $requestParams);
 
-            Log::info('ERPLY: API Response', [
-                'request' => $request,
-                'status' => $response->status(),
-                'body' => $response->body()
-            ]);
+        Log::info('ERPLY: API Response', [
+            'status' => $response->status(),
+            'body'   => $response->body()
+        ]);
 
-            if ($response->successful()) {
-                $data = $response->json();
-                
-                return [
-                    'success' => true,
-                    'data' => $data['records'] ?? $data['data'] ?? [],
-                    'status' => $data['status'] ?? [],
-                    'response' => $data
-                ];
-            }
-
+        if (!$response->successful()) {
             return [
                 'success' => false,
-                'error' => 'API request failed',
-                'status' => $response->status(),
-                'body' => $response->body()
-            ];
-            
-        } catch (\Exception $e) {
-            Log::error('ERPLY: Authenticated request failed', [
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
-            ]);
-            return [
-                'success' => false,
-                'error' => $e->getMessage()
+                'error'   => 'HTTP Error',
+                'status'  => $response->status()
             ];
         }
-    }
 
+        $data = $response->json();
+
+        if (($data['status']['responseStatus'] ?? '') === 'ok') {
+            return [
+                'success' => true,
+                'data'    => $data['records'] ?? [],
+                'status'  => $data['status'],
+                'response'=> $data
+            ];
+        }
+
+        return [
+            'success' => false,
+            'error'   => $data['status']['errorCode'] ?? 'Unknown error',
+            'status'  => $data['status'],
+            'response'=> $data
+        ];
+
+    } catch (\Exception $e) {
+        return [
+            'success' => false,
+            'error' => $e->getMessage()
+        ];
+    }
+}
     public function getCustomers($page = 1, $limit = 100): array
     {
         try {
@@ -313,8 +303,7 @@ class ErplyService
             // Use your approach with getCustomers request
             $result = $this->makeAuthenticatedRequest('getCustomers', [
                 'page' => $page,
-                'limit' => $limit,
-                'sessionKey' => $sessionKey
+                'limit' => $limit
             ]);
             dd($result);
 
