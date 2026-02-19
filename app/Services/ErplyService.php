@@ -353,12 +353,16 @@ public function syncCustomersToDatabase(int $page = 1, int $limit = 20, bool $de
         // Fetch customers from ERPLY
         $customers = $this->getCustomers($page, $limit, $debug ? 1 : 0);
 
-        // If debug is on, just show the customers
+        // If debug is on, just return the customers without inserting/updating
         if ($debug) {
             Log::info('Debug mode: showing customers only', [
-                'customers' => $customers
+                'customers_count' => count($customers)
             ]);
-            dd($customers); // stop execution and show data
+            return [
+                'total' => count($customers),
+                'debug' => true,
+                'customers' => $customers
+            ];
         }
 
         // Otherwise, sync customers to database
@@ -371,6 +375,7 @@ public function syncCustomersToDatabase(int $page = 1, int $limit = 20, bool $de
                 $firstName = $customerData['firstName'] ?? '';
                 $lastName = $customerData['lastName'] ?? '';
                 $fullName = trim($firstName . ' ' . $lastName);
+
                 if (empty($fullName)) {
                     $fullName = $customerData['companyName'] ?? 'Unknown Customer';
                 }

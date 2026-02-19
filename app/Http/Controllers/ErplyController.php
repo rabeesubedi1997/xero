@@ -18,29 +18,29 @@ class ErplyController extends Controller
         $this->xeroSyncService = $xeroSyncService;
     }
 
-    public function syncCustomers(): JsonResponse
-    {
-        try {
-            $result = $this->erplyService->syncCustomersToDatabase();
-            dd($result);
-             
-            return response()->json([
-                'success' => true,
-                'message' => 'Customer sync completed',
-                'data' => $result
-            ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to sync customers: ' . $e->getMessage(),
-                'error_details' => [
-                    'file' => $e->getFile(),
-                    'line' => $e->getLine(),
-                    'trace' => $e->getTraceAsString()
-                ]
-            ], 500);
-        }
+   public function syncCustomers(Request $request): JsonResponse
+{
+    try {
+        $debug = $request->query('debug', false); // ?debug=1
+        $result = $this->erplyService->syncCustomersToDatabase(1, 20, $debug);
+        
+        return response()->json([
+            'success' => true,
+            'message' => 'Customer sync completed',
+            'data' => $result
+        ]);
+    } catch (\Exception $e) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Failed to sync customers: ' . $e->getMessage(),
+            'error_details' => [
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString()
+            ]
+        ], 500);
     }
+}
 
     public function sendCustomersToErply(Request $request)
     {
