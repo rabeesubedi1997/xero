@@ -40,7 +40,7 @@ Route::middleware('api')->group(function () {
 
     // Xero ERPLY API Routes
     Route::prefix('erply')->group(function () {
-        Route::post('/sync/customers', [ErplyController::class, 'syncCustomers']);
+        Route::match(['get', 'post'], '/sync/customers', [ErplyController::class, 'syncCustomers']);
         Route::post('/sync/products', [ErplyController::class, 'syncProducts']);
         Route::post('/sync/full', [ErplyController::class, 'syncFull']);
         Route::post('/sync/to-xero', [ErplyController::class, 'syncToXero']);
