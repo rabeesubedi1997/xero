@@ -92,9 +92,9 @@ try {
                 echo "❌ erply_tokens table: CREATION FAILED\n";
             }
         }
-    } catch (Exception $e) {
-        echo "❌ Database Connection: FAILED - " . $e->getMessage() . "\n";
     }
+} catch (Exception $e) {
+    echo "❌ Database Connection: FAILED - " . $e->getMessage() . "\n";
 }
 
 // Test ERPLY API directly
