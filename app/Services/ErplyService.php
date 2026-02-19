@@ -47,6 +47,17 @@ class ErplyService
             
             Log::info('ERPLY: Database connection successful');
             
+            // Test direct authentication first
+            Log::info('ERPLY: Testing direct authentication');
+            $testSessionKey = $this->authenticate();
+            if ($testSessionKey) {
+                Log::info('ERPLY: Direct authentication successful', [
+                    'session_key' => substr($testSessionKey, 0, 10) . '...'
+                ]);
+            } else {
+                Log::error('ERPLY: Direct authentication failed');
+            }
+            
             // Check if user already has valid token in database
             $existingToken = ErplyToken::where('username', $this->username)
                                     ->where('client_code', $this->clientCode)
@@ -300,6 +311,21 @@ class ErplyService
             Log::info('ERPLY: Getting customers', [
                 'page' => $page,
                 'limit' => $limit
+            ]);
+            
+            // First, ensure we have a valid session
+            $sessionKey = $this->getValidToken();
+            if (!$sessionKey) {
+                Log::error('ERPLY: No valid session available, forcing authentication');
+                $sessionKey = $this->authenticate();
+                if (!$sessionKey) {
+                    Log::error('ERPLY: Authentication failed completely');
+                    return [];
+                }
+            }
+            
+            Log::info('ERPLY: Using session key', [
+                'session_key' => substr($sessionKey, 0, 10) . '...'
             ]);
             
             // Use your approach with getCustomers request
