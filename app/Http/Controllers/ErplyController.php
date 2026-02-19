@@ -41,6 +41,36 @@ class ErplyController extends Controller
         }
     }
 
+    public function sendCustomersToErply(Request $request)
+    {
+        try {
+            $limit = $request->get('limit', 50);
+            $result = $this->erplyService->sendCustomersToErply($limit);
+            
+            return response()->json([
+                'success' => true,
+                'message' => $result['message'] ?? 'Customer sync to ERPLY completed',
+                'data' => [
+                    'total' => $result['total'] ?? 0,
+                    'synced' => $result['synced'] ?? 0,
+                    'errors' => $result['errors'] ?? 0
+                ]
+            ]);
+            
+        } catch (\Exception $e) {
+            Log::error('Failed to send customers to ERPLY', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to send customers to ERPLY',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
     public function syncProducts(): JsonResponse
     {
         try {

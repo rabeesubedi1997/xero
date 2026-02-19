@@ -328,4 +328,224 @@ class ErplyService
             throw $e;
         }
     }
+
+    /**
+     * Send customers to ERPLY (your approach)
+     */
+    public function sendCustomersToErply($limit = 50): array
+    {
+        try {
+            Log::info('Starting send customers to ERPLY');
+            
+            // Get customers from database (like your approach)
+            $customers = ErplyCustomer::where('erplyPending', 1)
+                                     ->limit($limit)
+                                     ->get();
+            
+            if ($customers->isEmpty()) {
+                Log::info('All customers already synced to ERPLY');
+                ErplyCustomer::where('erplyPending', 2)->update(['erplyPending' => 1]);
+                return [
+                    'success' => true,
+                    'message' => 'All customers already synced to ERPLY',
+                    'total' => 0,
+                    'synced' => 0,
+                    'errors' => 0
+                ];
+            }
+
+            $bundleArray = [];
+            foreach ($customers as $customer) {
+                // Mark as processing
+                $customer->erplyPending = 2;
+                $customer->save();
+                
+                // Build request array (like your approach)
+                $reqArray = [
+                    'requestName' => 'saveCustomer',
+                    'sessionKey' => $this->getValidToken(),
+                    'clientCode' => $this->clientCode,
+                    'firstName' => $customer->first_name,
+                    'lastName' => $customer->last_name,
+                    'groupID' => $customer->company_name ? 15 : 16, // Wholesale vs Retail
+                    'email' => $customer->email,
+                    'phone' => $customer->phone,
+                    'mobile' => $customer->mobile,
+                    'countryID' => 25, // Australia
+                    'trimInputData' => 1,
+                    'attributeName1' => 'ShopifyID',
+                    'attributeType1' => 'text',
+                    'attributeValue1' => $customer->id,
+                    'attributeName2' => 'Street',
+                    'attributeType2' => 'text',
+                    'attributeValue2' => $customer->address,
+                    'attributeName3' => 'City',
+                    'attributeType3' => 'text',
+                    'attributeValue3' => $customer->city,
+                    'attributeName4' => 'PostCode',
+                    'attributeType4' => 'text',
+                    'attributeValue4' => $customer->post_code ?? '',
+                    'attributeName5' => 'State',
+                    'attributeType5' => 'text',
+                    'attributeValue5' => $customer->state ?? '',
+                    'attributeName6' => 'Country',
+                    'attributeType6' => 'text',
+                    'attributeValue6' => $customer->country ?? '',
+                ];
+                
+                // Check if customer exists in ERPLY
+                $customerID = $this->checkCustomerExists($customer->email);
+                if ($customerID != '') {
+                    $reqArray['customerID'] = $customerID;
+                }
+                
+                $bundleArray[] = $reqArray;
+            }
+
+            if (count($bundleArray) < 1) {
+                return [
+                    'success' => true,
+                    'message' => 'All customers synced to ERPLY',
+                    'total' => 0,
+                    'synced' => 0,
+                    'errors' => 0
+                ];
+            }
+
+            // Send bulk request to ERPLY
+            $result = $this->sendBulkRequest($bundleArray);
+            
+            $syncedCount = 0;
+            $errorCount = 0;
+            
+            if ($result['success'] && isset($result['requests'])) {
+                foreach ($customers as $key => $customer) {
+                    if (isset($result['requests'][$key]) && 
+                        $result['requests'][$key]['status']['errorCode'] == 0) {
+                        
+                        $customer->erply_customer_id = $result['requests'][$key]['records'][0]['customerID'];
+                        $customer->erplyPending = 0;
+                        $customer->save();
+                        $syncedCount++;
+                        
+                    } else {
+                        $customer->erply_error = json_encode($result['requests'][$key] ?? []);
+                        $customer->save();
+                        $errorCount++;
+                    }
+                }
+            }
+            
+            Log::info('Customers sent to ERPLY', [
+                'total' => count($customers),
+                'synced' => $syncedCount,
+                'errors' => $errorCount
+            ]);
+            
+            return [
+                'success' => true,
+                'message' => 'Customer sync to ERPLY completed',
+                'total' => count($customers),
+                'synced' => $syncedCount,
+                'errors' => $errorCount
+            ];
+            
+        } catch (\Exception $e) {
+            Log::error('Failed to send customers to ERPLY', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            return [
+                'success' => false,
+                'message' => 'Failed to send customers to ERPLY',
+                'error' => $e->getMessage()
+            ];
+        }
+    }
+
+    /**
+     * Check if customer exists in ERPLY
+     */
+    private function checkCustomerExists($email): string
+    {
+        try {
+            $result = $this->makeAuthenticatedRequest('getCustomers', [
+                'searchEmail' => $email
+            ]);
+            
+            if ($result['success'] && !empty($result['data'])) {
+                Log::info('Customer exists in ERPLY', [
+                    'email' => $email,
+                    'customer_id' => $result['data'][0]['customerID'] ?? ''
+                ]);
+                return $result['data'][0]['customerID'] ?? '';
+            }
+            
+            return '';
+        } catch (\Exception $e) {
+            Log::error('Failed to check customer exists', [
+                'email' => $email,
+                'error' => $e->getMessage()
+            ]);
+            return '';
+        }
+    }
+
+    /**
+     * Send bulk request to ERPLY
+     */
+    private function sendBulkRequest(array $requests): array
+    {
+        try {
+            $parameters = [
+                'lang' => 'eng',
+                'responseType' => 'json',
+                'sessionKey' => $this->getValidToken(),
+                'requests' => json_encode($requests)
+            ];
+            
+            Log::info('Sending bulk request to ERPLY', [
+                'request_count' => count($requests),
+                'session_key' => substr($parameters['sessionKey'], 0, 10) . '...'
+            ]);
+            
+            $response = Http::asForm()->timeout($this->timeout)
+                ->withHeaders([
+                    'Content-Type' => 'application/x-www-form-urlencoded',
+                    'Accept' => 'application/json'
+                ])
+                ->post($this->baseUrl, $parameters);
+            
+            Log::info('ERPLY bulk response', [
+                'status' => $response->status(),
+                'body' => $response->body()
+            ]);
+            
+            if ($response->successful()) {
+                $data = $response->json();
+                return [
+                    'success' => true,
+                    'data' => $data,
+                    'response' => $data
+                ];
+            }
+            
+            return [
+                'success' => false,
+                'error' => 'Bulk request failed',
+                'status' => $response->status(),
+                'body' => $response->body()
+            ];
+            
+        } catch (\Exception $e) {
+            Log::error('Bulk request exception', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            return [
+                'success' => false,
+                'error' => $e->getMessage()
+            ];
+        }
+    }
 }
