@@ -73,81 +73,53 @@ class ErplyService
      * Authenticate with ERPLY API and store token
      */
     public function authenticate(): ?string
-    {
-        try {
-            Log::info('ERPLY: Starting authentication', [
-                'api_url' => 'https://606950.erply.com/api/',
-                'username' => $this->username,
-                'client_code' => $this->clientCode,
-                'password_length' => strlen($this->password)
-            ]);
+{
+    try {
+        $response = Http::asForm()->timeout($this->timeout)->post(
+            $this->baseUrl,
+            [
+                'clientCode' => $this->clientCode,
+                'username'   => $this->username,
+                'password'   => $this->password,
+                'request'    => 'verifyUser'
+            ]
+        );
 
-            // Test direct authentication request
-            $authResponse = Http::asForm()->timeout($this->timeout)->post('https://606950.erply.com/api/login', [
-                'username' => $this->username,
-                'password' => $this->password,
-                'clientCode' => $this->clientCode
-            ]);
+        Log::info('ERPLY Login Response', [
+            'status' => $response->status(),
+            'body'   => $response->body()
+        ]);
 
-            Log::info('ERPLY: Authentication response', [
-                'status' => $authResponse->status(),
-                'body' => $authResponse->body(),
-                'successful' => $authResponse->successful()
-            ]);
-
-            if ($authResponse->successful()) {
-                $data = $authResponse->json();
-                
-                Log::info('ERPLY: Authentication response data', [
-                    'data' => $data,
-                    'has_session' => isset($data['session']),
-                    'has_session_key' => isset($data['session_key']),
-                    'has_sessionKey' => isset($data['sessionKey']),
-                    'has_session_token' => isset($data['session_token']),
-                    'has_token' => isset($data['token'])
-                ]);
-                
-                // Check for different session key locations
-                $sessionKey = $data['session'] ?? $data['session_key'] ?? $data['sessionKey'] ?? $data['session_token'] ?? $data['token'] ?? null;
-                
-                if ($sessionKey) {
-                    Log::info('ERPLY: Session key found', [
-                        'session_key' => substr($sessionKey, 0, 10) . '...',
-                        'full_length' => strlen($sessionKey)
-                    ]);
-                    
-                    // Store token in database
-                    $this->storeToken($sessionKey, $data);
-                    
-                    Log::info('ERPLY: Authentication successful', [
-                        'session_key' => substr($sessionKey, 0, 10) . '...',
-                        'response_status' => $data['status']['responseStatus'] ?? 'unknown',
-                        'records_total' => $data['status']['recordsTotal'] ?? 'unknown'
-                    ]);
-                    
-                    return $sessionKey;
-                } else {
-                    Log::error('ERPLY: No session key found in response', [
-                        'response_data' => $data
-                    ]);
-                }
-            } else {
-                Log::error('ERPLY: Authentication request failed', [
-                    'status' => $authResponse->status(),
-                    'body' => $authResponse->body()
-                ]);
-            }
-
-            return null;
-        } catch (\Exception $e) {
-            Log::error('ERPLY Authentication Exception', [
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
-            ]);
+        if (!$response->successful()) {
             return null;
         }
-    }
 
+        $data = $response->json();
+
+        if (
+            isset($data['status']['responseStatus']) &&
+            $data['status']['responseStatus'] === 'ok' &&
+            isset($data['records'][0]['sessionKey'])
+        ) {
+            $sessionKey = $data['records'][0]['sessionKey'];
+
+            $this->storeToken($sessionKey, $data);
+
+            return $sessionKey;
+        }
+
+        Log::error('ERPLY Login failed', ['response' => $data]);
+
+        return null;
+
+    } catch (\Exception $e) {
+        Log::error('ERPLY Authentication Exception', [
+            'error' => $e->getMessage()
+        ]);
+
+        return null;
+    }
+}
     /**
      * Store ERPLY token in database
      */
