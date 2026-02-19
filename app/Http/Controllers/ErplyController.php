@@ -22,6 +22,7 @@ class ErplyController extends Controller
     {
         try {
             $result = $this->erplyService->syncCustomersToDatabase();
+            dd($result);
             
             return response()->json([
                 'success' => true,
