@@ -33,82 +33,88 @@ echo "API URL: $apiUrl\n";
 echo "Username: $username\n";
 echo "Client Code: $clientCode\n\n";
 
-// Test ERPLY API
-echo "=== Testing ERPLY API ===\n";
+// Test both URLs
+$urls = [
+    'https://api.erply.com/api/',
+    'https://606950.erply.com/api/'
+];
 
-$ch = curl_init();
-curl_setopt($ch, CURLOPT_URL, $apiUrl . 'login');
-curl_setopt($ch, CURLOPT_POST, true);
-curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query([
-    'username' => $username,
-    'password' => $password,
-    'clientCode' => $clientCode
-]));
-curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-curl_setopt($ch, CURLOPT_TIMEOUT, 30);
-curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-
-$response = curl_exec($ch);
-$httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-$error = curl_error($ch);
-curl_close($ch);
-
-echo "HTTP Status: $httpCode\n";
-echo "CURL Error: $error\n";
-echo "Response: " . substr($response, 0, 1000) . "\n\n";
-
-if ($httpCode == 200) {
-    $data = json_decode($response, true);
+foreach ($urls as $testUrl) {
+    echo "=== Testing API URL: $testUrl ===\n";
     
-    if (isset($data['session'])) {
-        echo "✅ Authentication SUCCESS\n";
-        echo "Session Key: " . substr($data['session'], 0, 10) . "...\n\n";
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, $testUrl . 'login');
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query([
+        'username' => $username,
+        'password' => $password,
+        'clientCode' => $clientCode
+    ]));
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $error = curl_error($ch);
+    curl_close($ch);
+    
+    echo "HTTP Status: $httpCode\n";
+    echo "CURL Error: $error\n";
+    echo "Response: " . substr($response, 0, 500) . "\n\n";
+    
+    if ($httpCode == 200) {
+        $data = json_decode($response, true);
         
-        // Test getCustomers
-        echo "=== Testing getCustomers ===\n";
-        
-        $ch2 = curl_init();
-        curl_setopt($ch2, CURLOPT_URL, $apiUrl . 'customers');
-        curl_setopt($ch2, CURLOPT_POST, true);
-        curl_setopt($ch2, CURLOPT_POSTFIELDS, http_build_query([
-            'session' => $data['session'],
-            'request' => json_encode([
-                'getCustomers' => [
-                    'page' => 1,
-                    'limit' => 5
-                ]
-            ])
-        ]));
-        curl_setopt($ch2, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch2, CURLOPT_TIMEOUT, 30);
-        curl_setopt($ch2, CURLOPT_SSL_VERIFYPEER, false);
-        
-        $response2 = curl_exec($ch2);
-        $httpCode2 = curl_getinfo($ch2, CURLINFO_HTTP_CODE);
-        $error2 = curl_error($ch2);
-        curl_close($ch2);
-        
-        echo "Customers HTTP Status: $httpCode2\n";
-        echo "Customers CURL Error: $error2\n";
-        echo "Customers Response: " . substr($response2, 0, 1000) . "\n\n";
-        
-        if ($httpCode2 == 200) {
-            $data2 = json_decode($response2, true);
-            $customerCount = isset($data2['status']['recordsTotal']) ? $data2['status']['recordsTotal'] : 0;
-            echo "Total Customers in ERPLY: $customerCount\n";
+        if (isset($data['session'])) {
+            echo "✅ Authentication SUCCESS with $testUrl\n";
+            echo "Session Key: " . substr($data['session'], 0, 10) . "...\n\n";
             
-            if ($customerCount > 0) {
-                echo "✅ ERPLY account HAS customers\n";
-            } else {
-                echo "❌ ERPLY account is EMPTY\n";
+            // Test getCustomers
+            echo "=== Testing getCustomers with $testUrl ===\n";
+            
+            $ch2 = curl_init();
+            curl_setopt($ch2, CURLOPT_URL, $testUrl . 'customers');
+            curl_setopt($ch2, CURLOPT_POST, true);
+            curl_setopt($ch2, CURLOPT_POSTFIELDS, http_build_query([
+                'session' => $data['session'],
+                'request' => json_encode([
+                    'getCustomers' => [
+                        'page' => 1,
+                        'limit' => 5
+                    ]
+                ])
+            ]));
+            curl_setopt($ch2, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch2, CURLOPT_TIMEOUT, 30);
+            curl_setopt($ch2, CURLOPT_SSL_VERIFYPEER, false);
+            
+            $response2 = curl_exec($ch2);
+            $httpCode2 = curl_getinfo($ch2, CURLINFO_HTTP_CODE);
+            curl_close($ch2);
+            
+            echo "Customers HTTP Status: $httpCode2\n";
+            echo "Customers Response: " . substr($response2, 0, 500) . "\n\n";
+            
+            if ($httpCode2 == 200) {
+                $data2 = json_decode($response2, true);
+                $customerCount = isset($data2['status']['recordsTotal']) ? $data2['status']['recordsTotal'] : 0;
+                echo "Total Customers in ERPLY: $customerCount\n";
+                
+                if ($customerCount > 0) {
+                    echo "✅ ERPLY account HAS customers\n";
+                    break; // Exit the loop since we found working URL
+                } else {
+                    echo "❌ ERPLY account is EMPTY\n";
+                }
             }
+        } else {
+            echo "❌ Authentication FAILED with $testUrl\n";
+            echo "Error Code: " . ($data['status']['errorCode'] ?? 'Unknown') . "\n\n";
         }
     } else {
-        echo "❌ Authentication FAILED\n";
-        echo "Full response: " . json_encode($data, JSON_PRETTY_PRINT) . "\n";
+        echo "❌ HTTP Request failed with $testUrl\n\n";
     }
-} else {
-    echo "❌ HTTP Request failed\n";
 }
 
 echo "\n=== Debug Complete ===\n";
