@@ -18,11 +18,11 @@ class ErplyService
 
     public function __construct()
     {
-        $this->baseUrl = config('services.erply.api_url');
-        $this->username = config('services.erply.username');
-        $this->password = config('services.erply.password');
-        $this->clientCode = config('services.erply.client_code');
-        $this->timeout = config('services.erply.session_timeout', 3600);
+        $this->baseUrl = env('ERPLY_API_URL', 'https://api.erply.com/api/');
+        $this->username = env('ERPLY_USERNAME', 'support@retailcare.com.au');
+        $this->password = env('ERPLY_PASSWORD', 'NF7c8XUFv0!C');
+        $this->clientCode = env('ERPLY_CLIENT_CODE', '606950');
+        $this->timeout = env('ERPLY_SESSION_TIMEOUT', 3600);
     }
 
     public function authenticate()
