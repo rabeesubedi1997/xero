@@ -311,6 +311,7 @@ class ErplyService
                     ]
                 ])
             ]);
+            dd($result);
 
             if ($result['success']) {
                 $customers = $result['data'] ?? [];
@@ -349,7 +350,7 @@ class ErplyService
             Log::info('Starting ERPLY customer sync to database');
             
             $customers = $this->getCustomers(1, 10);
-            dd($customers);
+            // dd($customers);
             
             Log::info('ERPLY Customers Retrieved', [
                 'count' => count($customers),
