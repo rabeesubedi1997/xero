@@ -112,27 +112,48 @@ class ErplyService
      */
     private function storeToken(string $sessionKey, array $responseData): void
     {
-        // Clean up old tokens
-        ErplyToken::where('username', $this->username)
-                   ->where('client_code', $this->clientCode)
-                   ->where('expires_at', '<', Carbon::now())
-                   ->delete();
-        
-        // Create new token
-        ErplyToken::create([
-            'client_code' => $this->clientCode,
-            'username' => $this->username,
-            'password' => $this->password,
-            'session_key' => $sessionKey,
-            'jwt_token' => $responseData['jwt'] ?? null,
-            'expires_at' => Carbon::now()->addHours(1), // 1 hour expiry
-            'last_used_at' => Carbon::now()
-        ]);
-        
-        Log::info('ERPLY: Token stored in database', [
-            'session_key' => substr($sessionKey, 0, 10) . '...',
-            'expires_at' => Carbon::now()->addHours(1)
-        ]);
+        try {
+            Log::info('ERPLY: Storing token in database', [
+                'client_code' => $this->clientCode,
+                'username' => $this->username,
+                'session_key' => substr($sessionKey, 0, 10) . '...',
+                'response_data' => $responseData
+            ]);
+            
+            // Clean up old tokens
+            $deleted = ErplyToken::where('username', $this->username)
+                              ->where('client_code', $this->clientCode)
+                              ->where('expires_at', '<', Carbon::now())
+                              ->delete();
+            
+            Log::info('ERPLY: Old tokens deleted', [
+                'deleted_count' => $deleted
+            ]);
+            
+            // Create new token
+            $token = ErplyToken::create([
+                'client_code' => $this->clientCode,
+                'username' => $this->username,
+                'password' => $this->password,
+                'session_key' => $sessionKey,
+                'jwt_token' => $responseData['jwt'] ?? null,
+                'expires_at' => Carbon::now()->addHours(1), // 1 hour expiry
+                'last_used_at' => Carbon::now()
+            ]);
+            
+            Log::info('ERPLY: Token stored successfully', [
+                'token_id' => $token->id,
+                'session_key' => substr($sessionKey, 0, 10) . '...',
+                'expires_at' => Carbon::now()->addHours(1)
+            ]);
+            
+        } catch (\Exception $e) {
+            Log::error('ERPLY: Failed to store token', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            throw $e;
+        }
     }
 
     /**
