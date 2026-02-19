@@ -106,13 +106,16 @@ class ErplyService
             if ($response->successful()) {
                 $data = $response->json();
                 
-                // Check for records array (ERPLY format)
+                // Check for records array (ERPLY standard format)
                 $customers = $data['records'] ?? $data['data'] ?? $data['customers'] ?? [];
                 
                 Log::info('ERPLY Customers Retrieved', [
                     'page' => $page,
                     'limit' => $limit,
-                    'count' => count($customers)
+                    'count' => count($customers),
+                    'records_total' => $data['status']['recordsTotal'] ?? 'unknown',
+                    'records_in_response' => $data['status']['recordsInResponse'] ?? 'unknown',
+                    'response_status' => $data['status']['responseStatus'] ?? 'unknown'
                 ]);
                 
                 return $customers;
