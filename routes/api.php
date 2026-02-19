@@ -61,11 +61,9 @@ Route::get('/erply-debug', function () {
         
         // ERPLY uses specific request format
         $requestData = [
-            'request' => json_encode([
-                'username' => $username,
-                'password' => $password,
-                'clientCode' => $clientCode
-            ])
+            'username' => $username,
+            'password' => $password,
+            'clientCode' => $clientCode
         ];
         
         echo "Request data: " . json_encode($requestData) . "\n\n";
@@ -73,7 +71,9 @@ Route::get('/erply-debug', function () {
         $ch = curl_init();
         curl_setopt($ch, CURLOPT_URL, $apiUrl . 'login');
         curl_setopt($ch, CURLOPT_POST, true);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($requestData));
+        curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query([
+            'request' => json_encode($requestData)
+        ]));
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_TIMEOUT, 30);
         curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
