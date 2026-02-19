@@ -77,22 +77,43 @@ class ErplyService
             Log::info('ERPLY: Starting authentication', [
                 'api_url' => 'https://606950.erply.com/api/',
                 'username' => $this->username,
-                'client_code' => $this->clientCode
+                'client_code' => $this->clientCode,
+                'password_length' => strlen($this->password)
             ]);
 
-            $response = Http::asForm()->timeout($this->timeout)->post('https://606950.erply.com/api/login', [
+            // Test direct authentication request
+            $authResponse = Http::asForm()->timeout($this->timeout)->post('https://606950.erply.com/api/login', [
                 'username' => $this->username,
                 'password' => $this->password,
                 'clientCode' => $this->clientCode
             ]);
 
-            if ($response->successful()) {
-                $data = $response->json();
+            Log::info('ERPLY: Authentication response', [
+                'status' => $authResponse->status(),
+                'body' => $authResponse->body()
+            ]);
+
+            if ($authResponse->successful()) {
+                $data = $authResponse->json();
+                
+                Log::info('ERPLY: Authentication response data', [
+                    'data' => $data,
+                    'has_session' => isset($data['session']),
+                    'has_session_key' => isset($data['session_key']),
+                    'has_sessionKey' => isset($data['sessionKey']),
+                    'has_session_token' => isset($data['session_token']),
+                    'has_token' => isset($data['token'])
+                ]);
                 
                 // Check for different session key locations
                 $sessionKey = $data['session'] ?? $data['session_key'] ?? $data['sessionKey'] ?? $data['session_token'] ?? $data['token'] ?? null;
                 
                 if ($sessionKey) {
+                    Log::info('ERPLY: Session key found', [
+                        'session_key' => substr($sessionKey, 0, 10) . '...',
+                        'full_length' => strlen($sessionKey)
+                    ]);
+                    
                     // Store token in database
                     $this->storeToken($sessionKey, $data);
                     
@@ -103,13 +124,17 @@ class ErplyService
                     ]);
                     
                     return $sessionKey;
+                } else {
+                    Log::error('ERPLY: No session key found in response', [
+                        'response_data' => $data
+                    ]);
                 }
+            } else {
+                Log::error('ERPLY: Authentication request failed', [
+                    'status' => $authResponse->status(),
+                    'body' => $authResponse->body()
+                ]);
             }
-
-            Log::error('ERPLY Authentication Failed', [
-                'status' => $response->status(),
-                'body' => $response->body()
-            ]);
 
             return null;
         } catch (\Exception $e) {
