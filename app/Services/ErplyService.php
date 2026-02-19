@@ -61,12 +61,12 @@ class ErplyService
     {
         try {
             Log::info('ERPLY: Starting authentication', [
-                'api_url' => $this->baseUrl,
+                'api_url' => 'https://606950.erply.com/api/',
                 'username' => $this->username,
                 'client_code' => $this->clientCode
             ]);
 
-            $response = Http::asForm()->timeout($this->timeout)->post($this->baseUrl . 'login', [
+            $response = Http::asForm()->timeout($this->timeout)->post('https://606950.erply.com/api/login', [
                 'username' => $this->username,
                 'password' => $this->password,
                 'clientCode' => $this->clientCode
@@ -530,12 +530,13 @@ class ErplyService
                 'session_key' => substr($parameters['sessionKey'], 0, 10) . '...'
             ]);
             
+            // Use correct ERPLY API URL
             $response = Http::asForm()->timeout($this->timeout)
                 ->withHeaders([
                     'Content-Type' => 'application/x-www-form-urlencoded',
                     'Accept' => 'application/json'
                 ])
-                ->post($this->baseUrl, $parameters);
+                ->post('https://606950.erply.com/api/', $parameters);
             
             Log::info('ERPLY bulk response', [
                 'status' => $response->status(),

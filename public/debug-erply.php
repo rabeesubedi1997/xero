@@ -22,7 +22,7 @@ if (file_exists($dotenvPath)) {
 }
 
 // Get environment variables
-$apiUrl = getenv('ERPLY_API_URL') ?: 'https://api.erply.com/api/';
+$apiUrl = getenv('ERPLY_API_URL') ?: 'https://606950.erply.com/api/';
 $username = getenv('ERPLY_USERNAME') ?: 'support@retailcare.com.au';
 $password = getenv('ERPLY_PASSWORD') ?: 'NF7c8XUFv0!C';
 $clientCode = getenv('ERPLY_CLIENT_CODE') ?: '606950';
