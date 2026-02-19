@@ -21,14 +21,23 @@ use App\Http\Controllers\CustomerController;
 
 // ERPLY Debug Route (outside API middleware for easier access)
 Route::get('/erply-debug', function () {
+    // Force load .env file
+    $dotenv = Dotenv\Dotenv::createImmutable(base_path());
+    $dotenv->load();
+    
     $env = [
-        'ERPLY_API_URL' => env('ERPLY_API_URL', 'https://606950.erply.com/api/'),
-        'ERPLY_USERNAME' => env('ERPLY_USERNAME', 'support@retailcare.com.au'),
-        'ERPLY_PASSWORD' => str_repeat('*', strlen(env('ERPLY_PASSWORD', 'NF7c8XUFv0!C'))),
-        'ERPLY_CLIENT_CODE' => env('ERPLY_CLIENT_CODE', '606950'),
+        'ERPLY_API_URL' => $_ENV['ERPLY_API_URL'] ?? env('ERPLY_API_URL', 'https://606950.erply.com/api/'),
+        'ERPLY_USERNAME' => $_ENV['ERPLY_USERNAME'] ?? env('ERPLY_USERNAME', 'support@retailcare.com.au'),
+        'ERPLY_PASSWORD' => str_repeat('*', strlen($_ENV['ERPLY_PASSWORD'] ?? env('ERPLY_PASSWORD', 'NF7c8XUFv0!C'))),
+        'ERPLY_CLIENT_CODE' => $_ENV['ERPLY_CLIENT_CODE'] ?? env('ERPLY_CLIENT_CODE', '606950'),
     ];
 
     echo "=== ERPLY API Debug ===\n\n";
+    echo "Environment Check:\n";
+    echo "Base Path: " . base_path() . "\n";
+    echo ".env file exists: " . (file_exists(base_path() . '/.env') ? 'YES' : 'NO') . "\n";
+    echo ".env file readable: " . (is_readable(base_path() . '/.env') ? 'YES' : 'NO') . "\n\n";
+    
     echo "Configuration:\n";
     foreach ($env as $key => $value) {
         echo "$key: $value\n";
@@ -38,13 +47,22 @@ Route::get('/erply-debug', function () {
     // Test 1: Authentication
     echo "=== Test 1: Authentication ===\n";
     try {
+        $apiUrl = $_ENV['ERPLY_API_URL'] ?? env('ERPLY_API_URL', 'https://606950.erply.com/api/');
+        $username = $_ENV['ERPLY_USERNAME'] ?? env('ERPLY_USERNAME', 'support@retailcare.com.au');
+        $password = $_ENV['ERPLY_PASSWORD'] ?? env('ERPLY_PASSWORD', 'NF7c8XUFv0!C');
+        $clientCode = $_ENV['ERPLY_CLIENT_CODE'] ?? env('ERPLY_CLIENT_CODE', '606950');
+        
+        echo "Using API URL: $apiUrl\n";
+        echo "Using Username: $username\n";
+        echo "Using Client Code: $clientCode\n\n";
+        
         $ch = curl_init();
-        curl_setopt($ch, CURLOPT_URL, env('ERPLY_API_URL', 'https://606950.erply.com/api/') . 'auth/login');
+        curl_setopt($ch, CURLOPT_URL, $apiUrl . 'auth/login');
         curl_setopt($ch, CURLOPT_POST, true);
         curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query([
-            'username' => env('ERPLY_USERNAME', 'support@retailcare.com.au'),
-            'password' => env('ERPLY_PASSWORD', 'NF7c8XUFv0!C'),
-            'clientCode' => env('ERPLY_CLIENT_CODE', '606950')
+            'username' => $username,
+            'password' => $password,
+            'clientCode' => $clientCode
         ]));
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_TIMEOUT, 30);
@@ -66,7 +84,7 @@ Route::get('/erply-debug', function () {
             // Test 2: Get Customers
             echo "=== Test 2: Get Customers ===\n";
             $ch = curl_init();
-            curl_setopt($ch, CURLOPT_URL, env('ERPLY_API_URL', 'https://606950.erply.com/api/') . 'customers');
+            curl_setopt($ch, CURLOPT_URL, $apiUrl . 'customers');
             curl_setopt($ch, CURLOPT_POST, true);
             curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query([
                 'request' => json_encode([
