@@ -68,12 +68,11 @@ class ErplyService
 
             $response = Http::asForm()->timeout($this->timeout)
                 ->withHeaders([
-                    'Authorization' => $sessionToken,
-                    'Content-Type' => 'application/x-www-form-urlencoded'
+                    'Content-Type' => 'application/x-www-form-urlencoded',
+                    'Accept' => 'application/json'
                 ])
-                ->get($this->baseUrl . 'customers', [
-                    'page' => $page,
-                    'limit' => $limit,
+                ->post($this->baseUrl . 'customers', [
+                    'session' => $sessionToken,
                     'request' => json_encode([
                         'getCustomers' => [
                             'page' => $page,
@@ -87,11 +86,9 @@ class ErplyService
                 Log::info('ERPLY Customers Retrieved', [
                     'page' => $page,
                     'limit' => $limit,
-                    'response_status' => $response->status(),
-                    'response_data' => $data,
-                    'count' => count($data['data'] ?? $data['customers'] ?? [])
+                    'count' => count($data['data'] ?? [])
                 ]);
-                return $data['data'] ?? $data['customers'] ?? [];
+                return $data['data'] ?? [];
             }
 
             Log::error('ERPLY Customers API Error', [
