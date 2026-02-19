@@ -98,6 +98,40 @@ if ($httpCode == 200) {
                 echo "No customers found in response\n";
                 echo "Full response structure:\n";
                 print_r($customerData);
+                
+                // Try to get total customers count
+                echo "\n=== Testing Customer Count ===\n";
+                
+                $ch3 = curl_init();
+                curl_setopt($ch3, CURLOPT_URL, $apiUrl . 'customers');
+                curl_setopt($ch3, CURLOPT_POST, true);
+                curl_setopt($ch3, CURLOPT_POSTFIELDS, http_build_query([
+                    'session' => $sessionKey,
+                    'request' => json_encode([
+                        'getCustomers' => [
+                            'page' => 1,
+                            'limit' => 1
+                        ]
+                    ])
+                ]));
+                curl_setopt($ch3, CURLOPT_RETURNTRANSFER, true);
+                curl_setopt($ch3, CURLOPT_TIMEOUT, 30);
+                curl_setopt($ch3, CURLOPT_SSL_VERIFYPEER, false);
+                curl_setopt($ch3, CURLOPT_HTTPHEADER, [
+                    'Content-Type: application/x-www-form-urlencoded',
+                    'Accept: application/json'
+                ]);
+                
+                $response3 = curl_exec($ch3);
+                $httpCode3 = curl_getinfo($ch3, CURLINFO_HTTP_CODE);
+                curl_close($ch3);
+                
+                echo "Customer Count Test - HTTP Status: $httpCode3\n";
+                echo "Customer Count Test - Response: " . substr($response3, 0, 500) . "...\n\n";
+                
+                $countData = json_decode($response3, true);
+                echo "Customer Count Test - Full Response:\n";
+                print_r($countData);
             }
         } else {
             echo "❌ Failed to get customers (HTTP $httpCode2)\n";
