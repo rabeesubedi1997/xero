@@ -352,7 +352,7 @@ class ErplyService
         // Fetch customers from ERPLY
         $customers = $this->getCustomers($page, $limit, $debug ? 1 : 0);
 
-        if ($debug==1) {
+        if ($debug) {
             dd($customers);
         }
 
