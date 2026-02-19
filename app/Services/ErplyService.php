@@ -28,7 +28,8 @@ class ErplyService
     public function authenticate()
     {
         try {
-            $response = Http::asForm()->timeout($this->timeout)->post($this->baseUrl . 'auth/login', [
+            // Use the correct ERPLY API format based on our debug findings
+            $response = Http::asForm()->timeout($this->timeout)->post($this->baseUrl . 'login', [
                 'username' => $this->username,
                 'password' => $this->password,
                 'clientCode' => $this->clientCode
@@ -40,7 +41,15 @@ class ErplyService
                     'response' => $data,
                     'status' => $response->status()
                 ]);
-                return $data['session'] ?? $data['session_token'] ?? $data['token'] ?? null;
+                
+                // Check for different session key locations
+                $sessionKey = $data['session'] ?? $data['session_key'] ?? $data['sessionKey'] ?? $data['session_token'] ?? $data['token'] ?? null;
+                
+                Log::info('ERPLY Session Key Found', [
+                    'session_key' => $sessionKey ? substr($sessionKey, 0, 10) . '...' : 'NULL'
+                ]);
+                
+                return $sessionKey;
             }
 
             Log::error('ERPLY Authentication Failed', [
@@ -61,10 +70,17 @@ class ErplyService
     public function getCustomers($page = 1, $limit = 100)
     {
         try {
-            $sessionToken = $this->authenticate();
-            if (!$sessionToken) {
-                throw new \Exception('Failed to authenticate with ERPLY');
+            $sessionKey = $this->authenticate();
+            if (!$sessionKey) {
+                Log::error('ERPLY: No session key available');
+                return [];
             }
+
+            Log::info('ERPLY: Attempting to get customers with session key', [
+                'session_key' => substr($sessionKey, 0, 10) . '...',
+                'page' => $page,
+                'limit' => $limit
+            ]);
 
             $response = Http::asForm()->timeout($this->timeout)
                 ->withHeaders([
@@ -72,7 +88,7 @@ class ErplyService
                     'Accept' => 'application/json'
                 ])
                 ->post($this->baseUrl . 'customers', [
-                    'session' => $sessionToken,
+                    'session' => $sessionKey,
                     'request' => json_encode([
                         'getCustomers' => [
                             'page' => $page,
@@ -81,14 +97,22 @@ class ErplyService
                     ])
                 ]);
 
+            Log::info('ERPLY: Customers API Response', [
+                'status' => $response->status(),
+                'body' => $response->body()
+            ]);
+
             if ($response->successful()) {
                 $data = $response->json();
+                $customers = $data['data'] ?? $data['customers'] ?? [];
+                
                 Log::info('ERPLY Customers Retrieved', [
                     'page' => $page,
                     'limit' => $limit,
-                    'count' => count($data['data'] ?? [])
+                    'count' => count($customers)
                 ]);
-                return $data['data'] ?? [];
+                
+                return $customers;
             }
 
             Log::error('ERPLY Customers API Error', [
