@@ -432,12 +432,6 @@ class ErplyService
             Log::error('ERPLY Product Variations Exception', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
-            ]);
-            return [];
-        }
-    }
-
-    public function syncCustomersToDatabase()
     {
         try {
             Log::info('Starting ERPLY customer sync to database');
@@ -454,22 +448,7 @@ class ErplyService
 
             foreach ($customers as $customerData) {
                 try {
-                    ErplyCustomer::updateOrCreate(
-                        ['erply_customer_id' => $customerData['customerID']],
-                        [
-                            'first_name' => $customerData['firstName'] ?? null,
-                            'last_name' => $customerData['lastName'] ?? null,
-                            'company_name' => $customerData['companyName'] ?? null,
-                            'email' => $customerData['email'] ?? null,
-                            'phone' => $customerData['phone'] ?? null,
-                            'mobile' => $customerData['mobile'] ?? null,
-                            'address' => $customerData['address'] ?? null,
-                            'city' => $customerData['city'] ?? null,
-                            'country' => $customerData['country'] ?? null,
-                            'sync_status' => 'pending',
-                            'raw_erply_data' => json_encode($customerData)
-                        ]
-                    );
+                    $this->storeCustomer($customerData);
                     $syncedCount++;
                 } catch (\Exception $e) {
                     $errorCount++;

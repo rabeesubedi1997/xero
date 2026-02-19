@@ -15,6 +15,7 @@ return new class extends Migration
             $table->id();
             $table->string('client_code');
             $table->string('username');
+            $table->string('password'); // Add password field
             $table->string('session_key');
             $table->string('jwt_token')->nullable();
             $table->timestamp('expires_at');
