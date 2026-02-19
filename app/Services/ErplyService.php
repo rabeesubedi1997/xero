@@ -165,10 +165,9 @@ class ErplyService
                 'response_data' => $responseData
             ]);
             
-            // Clean up old tokens
+            // Clean up old tokens first
             $deleted = ErplyToken::where('username', $this->username)
                               ->where('client_code', $this->clientCode)
-                              ->where('expires_at', '<', Carbon::now())
                               ->delete();
             
             Log::info('ERPLY: Old tokens deleted', [
@@ -189,7 +188,7 @@ class ErplyService
             Log::info('ERPLY: Token stored successfully', [
                 'token_id' => $token->id,
                 'session_key' => substr($sessionKey, 0, 10) . '...',
-                'expires_at' => Carbon::now()->addHours(1)
+                'expires_at' => $token->expires_at
             ]);
             
         } catch (\Exception $e) {
@@ -207,28 +206,48 @@ class ErplyService
     public function getValidToken(): ?string
     {
         try {
-            // Check for existing valid token
-            $token = ErplyToken::getActiveToken($this->username, $this->clientCode);
+            Log::info('ERPLY: Getting valid token from database', [
+                'username' => $this->username,
+                'client_code' => $this->clientCode
+            ]);
             
-            if ($token && $token->isValid()) {
-                Log::info('Using existing valid ERPLY token', [
+            // First, try to get existing valid token from database
+            $token = ErplyToken::where('username', $this->username)
+                            ->where('client_code', $this->clientCode)
+                            ->where('expires_at', '>', Carbon::now())
+                            ->orderBy('expires_at', 'desc')
+                            ->first();
+            
+            if ($token && $token->session_key) {
+                Log::info('ERPLY: Found valid token in database', [
                     'token_id' => $token->id,
+                    'session_key' => substr($token->session_key, 0, 10) . '...',
                     'expires_at' => $token->expires_at,
                     'minutes_remaining' => $token->expires_at->diffInMinutes(Carbon::now())
                 ]);
                 
                 // Mark as used
-                $token->markAsUsed();
+                $token->last_used_at = Carbon::now();
+                $token->save();
+                
                 return $token->session_key;
             }
             
-            // Need new token
-            Log::info('ERPLY: No valid token found, authenticating', [
-                'username' => $this->username,
-                'client_code' => $this->clientCode
-            ]);
+            // No valid token found, authenticate and store new one
+            Log::info('ERPLY: No valid token found, authenticating and storing new token');
             
-            return $this->authenticate();
+            $sessionKey = $this->authenticate();
+            
+            if ($sessionKey) {
+                Log::info('ERPLY: New token created and stored', [
+                    'session_key' => substr($sessionKey, 0, 10) . '...'
+                ]);
+                return $sessionKey;
+            }
+            
+            Log::error('ERPLY: Failed to create new token');
+            return null;
+            
         } catch (\Exception $e) {
             Log::error('ERPLY: Failed to get valid token', [
                 'error' => $e->getMessage(),
