@@ -18,11 +18,61 @@ class ErplyService
 
     public function __construct()
     {
-        $this->baseUrl = env('ERPLY_API_URL', 'https://api.erply.com/api/');
+        $this->baseUrl = env('ERPLY_API_URL', 'https://606950.erply.com/api/');
         $this->username = env('ERPLY_USERNAME', 'support@retailcare.com.au');
         $this->password = env('ERPLY_PASSWORD', 'NF7c8XUFv0!C');
         $this->clientCode = env('ERPLY_CLIENT_CODE', '606950');
         $this->timeout = env('ERPLY_SESSION_TIMEOUT', 3600);
+        
+        // Ensure user is authorized and session key is stored in database
+        $this->ensureUserAuthorized();
+    }
+
+    /**
+     * Ensure user is authorized and session key is stored in database
+     */
+    private function ensureUserAuthorized(): void
+    {
+        try {
+            // Check if user already has valid token in database
+            $existingToken = ErplyToken::where('username', $this->username)
+                                    ->where('client_code', $this->clientCode)
+                                    ->where('expires_at', '>', Carbon::now())
+                                    ->first();
+            
+            if ($existingToken) {
+                Log::info('ERPLY: User already authorized with valid token', [
+                    'token_id' => $existingToken->id,
+                    'expires_at' => $existingToken->expires_at
+                ]);
+                return;
+            }
+            
+            // Authenticate and store new token
+            Log::info('ERPLY: Authorizing user and storing session key', [
+                'username' => $this->username,
+                'client_code' => $this->clientCode
+            ]);
+            
+            $sessionKey = $this->authenticate();
+            
+            if ($sessionKey) {
+                Log::info('ERPLY: User authorized and session key stored', [
+                    'session_key' => substr($sessionKey, 0, 10) . '...'
+                ]);
+            } else {
+                Log::error('ERPLY: Failed to authorize user', [
+                    'username' => $this->username,
+                    'client_code' => $this->clientCode
+                ]);
+            }
+            
+        } catch (\Exception $e) {
+            Log::error('ERPLY: Authorization check failed', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+        }
     }
 
     /**
@@ -274,7 +324,7 @@ class ErplyService
         try {
             Log::info('Starting ERPLY customer sync to database');
             
-            $customers = $this->getCustomers(1, 100);
+            $customers = $this->getCustomers(1, 10);
             
             Log::info('ERPLY Customers Retrieved', [
                 'count' => count($customers),
