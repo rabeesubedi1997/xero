@@ -83,11 +83,12 @@ class ErplyService
             ]);
 
             // Test direct authentication request
-            $authResponse = Http::asForm()->timeout($this->timeout)->post('https://606950.erply.com/api/login', [
+            $authResponse = Http::asForm()->timeout($this->timeout)->post('https://606950.erply.com/api/', [
                 'username' => $this->username,
                 'password' => $this->password,
                 'clientCode' => $this->clientCode
             ]);
+            dd($authResponse);
 
             Log::info('ERPLY: Authentication response', [
                 'status' => $authResponse->status(),
