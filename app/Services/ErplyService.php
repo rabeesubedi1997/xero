@@ -278,14 +278,26 @@ class ErplyService
         ];
     }
 }
-    public function getCustomers(int $page = 1, int $limit = 100, bool $debug = false, ?string $changedSince = null): array
+    public function getCustomers(int $page = 1, int $limit = 100, bool $debug = false, ?string $changedSince = null, bool $autoSync = false): array
 {
     try {
         Log::info('ERPLY: Getting customers', [
             'page' => $page,
             'limit' => $limit,
-            'changedSince' => $changedSince
+            'changedSince' => $changedSince,
+            'autoSync' => $autoSync
         ]);
+
+        // If autoSync is enabled and no changedSince provided, get it from sync_status
+        if ($autoSync && !$changedSince) {
+            $syncStatus = SyncStatus::getOrCreate('customer');
+            $changedSince = $syncStatus->getChangedSinceDate();
+            
+            Log::info('ERPLY: Using changedSince from sync_status', [
+                'changedSince' => $changedSince,
+                'last_sync_date' => $syncStatus->last_sync_date
+            ]);
+        }
 
         // Ensure valid session
         $sessionKey = $this->getValidToken();
@@ -321,6 +333,11 @@ class ErplyService
                 'records_in_response' => $result['response']['status']['recordsInResponse'] ?? 0,
                 'changedSince' => $changedSince
             ]);
+
+            // If autoSync is enabled, process customers immediately
+            if ($autoSync) {
+                $this->processCustomersSync($customers, $changedSince);
+            }
 
             if ($debug) {
                 // Only show in debug mode
@@ -865,6 +882,157 @@ public function syncCustomersToDatabase(int $page = 1, int $limit = 100, bool $d
             ]);
             return [
                 'error' => $e->getMessage()
+            ];
+        }
+    }
+
+    /**
+     * Process customers sync - insert/update customers and update sync status
+     */
+    private function processCustomersSync(array $customers, ?string $changedSince): array
+    {
+        try {
+            Log::info('ERPLY: Processing customers sync', [
+                'customer_count' => count($customers),
+                'changedSince' => $changedSince
+            ]);
+
+            // Get or create sync status
+            $syncStatus = SyncStatus::getOrCreate('customer');
+            $syncStatus->markInProgress();
+
+            $syncedCount = 0;
+            $updatedCount = 0;
+            $insertedCount = 0;
+            $errorCount = 0;
+            $lastRecordTimestamp = null;
+
+            foreach ($customers as $customerData) {
+                try {
+                    $customerID = $customerData['customerID'] ?? null;
+                    if (!$customerID) {
+                        Log::warning('Customer missing customerID', ['customer_data' => $customerData]);
+                        continue;
+                    }
+
+                    // Prepare customer data
+                    $firstName = $customerData['firstName'] ?? '';
+                    $lastName = $customerData['lastName'] ?? '';
+                    $fullName = trim($firstName . ' ' . $lastName);
+                    if (empty($fullName)) {
+                        $fullName = $customerData['companyName'] ?? 'Unknown Customer';
+                    }
+
+                    $customerDataForDb = [
+                        'name' => $fullName,
+                        'first_name' => $firstName ?: null,
+                        'last_name' => $lastName ?: null,
+                        'company_name' => $customerData['companyName'] ?? null,
+                        'email' => $customerData['email'] ?? null,
+                        'phone' => $customerData['phone'] ?? null,
+                        'mobile' => $customerData['mobile'] ?? null,
+                        'address' => $customerData['address'] ?? null,
+                        'city' => $customerData['city'] ?? null,
+                        'state' => $customerData['state'] ?? null,
+                        'post_code' => $customerData['postCode'] ?? null,
+                        'country' => $customerData['country'] ?? null,
+                        'sync_status' => 'pending',
+                        'raw_erply_data' => json_encode($customerData)
+                    ];
+
+                    // Check if customer exists
+                    $existingCustomer = ErplyCustomer::where('erply_customer_id', $customerID)->first();
+
+                    if ($existingCustomer) {
+                        // Update existing customer
+                        $existingCustomer->update($customerDataForDb);
+                        $updatedCount++;
+                        
+                        Log::info('ERPLY: Updated existing customer', [
+                            'customer_id' => $customerID,
+                            'name' => $fullName
+                        ]);
+                    } else {
+                        // Insert new customer
+                        $customerDataForDb['erply_customer_id'] = $customerID;
+                        ErplyCustomer::create($customerDataForDb);
+                        $insertedCount++;
+                        
+                        Log::info('ERPLY: Inserted new customer', [
+                            'customer_id' => $customerID,
+                            'name' => $fullName
+                        ]);
+                    }
+
+                    $syncedCount++;
+
+                    // Track latest timestamp from this batch
+                    if (isset($customerData['timeModified'])) {
+                        $recordTimestamp = Carbon::parse($customerData['timeModified']);
+                        if (!$lastRecordTimestamp || $recordTimestamp->gt($lastRecordTimestamp)) {
+                            $lastRecordTimestamp = $recordTimestamp;
+                        }
+                    } elseif (isset($customerData['timeAdded'])) {
+                        $recordTimestamp = Carbon::parse($customerData['timeAdded']);
+                        if (!$lastRecordTimestamp || $recordTimestamp->gt($lastRecordTimestamp)) {
+                            $lastRecordTimestamp = $recordTimestamp;
+                        }
+                    }
+
+                } catch (\Exception $e) {
+                    $errorCount++;
+                    Log::error('Failed to process customer', [
+                        'customer_id' => $customerData['customerID'] ?? 'unknown',
+                        'error' => $e->getMessage(),
+                        'customer_data' => $customerData
+                    ]);
+                }
+            }
+
+            // Update sync status with the timestamp of the last processed record
+            $finalSyncDate = $lastRecordTimestamp ? $lastRecordTimestamp : Carbon::now();
+            $syncStatus->markSuccess($syncedCount);
+
+            // Update last_sync_date to timestamp of last processed record
+            $syncStatus->update(['last_sync_date' => $finalSyncDate]);
+
+            Log::info('ERPLY: Customer sync processing completed', [
+                'total_customers' => count($customers),
+                'synced_count' => $syncedCount,
+                'updated_count' => $updatedCount,
+                'inserted_count' => $insertedCount,
+                'error_count' => $errorCount,
+                'final_sync_date' => $finalSyncDate->format('Y-m-d H:i:s'),
+                'changedSince' => $changedSince
+            ]);
+
+            return [
+                'total' => count($customers),
+                'synced' => $syncedCount,
+                'updated' => $updatedCount,
+                'inserted' => $insertedCount,
+                'errors' => $errorCount,
+                'last_sync_date' => $finalSyncDate->format('Y-m-d H:i:s')
+            ];
+
+        } catch (\Exception $e) {
+            // Mark sync as failed
+            if (isset($syncStatus)) {
+                $syncStatus->markFailed($e->getMessage());
+            }
+
+            Log::error('ERPLY: Customer sync processing failed', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            return [
+                'total' => count($customers),
+                'synced' => 0,
+                'updated' => 0,
+                'inserted' => 0,
+                'errors' => count($customers),
+                'error_message' => $e->getMessage()
             ];
         }
     }
