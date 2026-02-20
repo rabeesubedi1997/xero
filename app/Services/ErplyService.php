@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\ErplyToken;
 use App\Models\ErplyCustomer;
+use App\Models\SyncStatus;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
@@ -277,12 +278,13 @@ class ErplyService
         ];
     }
 }
-    public function getCustomers(int $page = 1, int $limit = 100, bool $debug = false): array
+    public function getCustomers(int $page = 1, int $limit = 100, bool $debug = false, ?string $changedSince = null): array
 {
     try {
         Log::info('ERPLY: Getting customers', [
             'page' => $page,
-            'limit' => $limit
+            'limit' => $limit,
+            'changedSince' => $changedSince
         ]);
 
         // Ensure valid session
@@ -296,11 +298,18 @@ class ErplyService
             }
         }
 
-        // Correct pagination parameters for ERPLY API
-        $result = $this->makeAuthenticatedRequest('getCustomers', [
+        // Build request parameters
+        $params = [
             'pageNo' => $page,           // Correct parameter
             'recordsOnPage' => $limit    // Correct parameter
-        ]);
+        ];
+
+        // Add changedSince parameter if provided
+        if ($changedSince) {
+            $params['changedSince'] = $changedSince;
+        }
+
+        $result = $this->makeAuthenticatedRequest('getCustomers', $params);
 
         if ($result['success']) {
             $customers = $result['data'] ?? [];
@@ -309,7 +318,8 @@ class ErplyService
                 'page' => $page,
                 'count' => count($customers),
                 'records_total' => $result['response']['status']['recordsTotal'] ?? 0,
-                'records_in_response' => $result['response']['status']['recordsInResponse'] ?? 0
+                'records_in_response' => $result['response']['status']['recordsInResponse'] ?? 0,
+                'changedSince' => $changedSince
             ]);
 
             if ($debug) {
@@ -682,6 +692,178 @@ public function syncCustomersToDatabase(int $page = 1, int $limit = 100, bool $d
             ]);
             return [
                 'success' => false,
+                'error' => $e->getMessage()
+            ];
+        }
+    }
+
+    /**
+     * Incremental customer sync using changedSince parameter
+     */
+    public function syncCustomersIncremental(int $page = 1, int $limit = 100, bool $debug = false): array
+    {
+        try {
+            Log::info('Starting ERPLY incremental customer sync', [
+                'page' => $page,
+                'limit' => $limit,
+                'debug' => $debug
+            ]);
+
+            // Get or create sync status
+            $syncStatus = SyncStatus::getOrCreate('customer');
+            $syncStatus->markInProgress();
+
+            // Get changedSince date
+            $changedSince = $syncStatus->getChangedSinceDate();
+
+            Log::info('ERPLY: Using changedSince date', [
+                'changedSince' => $changedSince,
+                'last_sync_date' => $syncStatus->last_sync_date
+            ]);
+
+            // Fetch customers with changedSince
+            $customers = $this->getCustomers($page, $limit, $debug, $changedSince);
+
+            // Debug mode: just return fetched customers
+            if ($debug) {
+                return [
+                    'total' => count($customers),
+                    'debug' => true,
+                    'changedSince' => $changedSince,
+                    'customers' => $customers
+                ];
+            }
+
+            if (empty($customers)) {
+                $syncStatus->markSuccess(0);
+                return [
+                    'total' => 0,
+                    'synced' => 0,
+                    'errors' => 0,
+                    'changedSince' => $changedSince
+                ];
+            }
+
+            $syncedCount = 0;
+            $errorCount = 0;
+
+            foreach ($customers as $customerData) {
+                try {
+                    $firstName = $customerData['firstName'] ?? '';
+                    $lastName = $customerData['lastName'] ?? '';
+                    $fullName = trim($firstName . ' ' . $lastName);
+                    if (empty($fullName)) {
+                        $fullName = $customerData['companyName'] ?? 'Unknown Customer';
+                    }
+
+                    // Check if customer exists and compare timestamps
+                    $existingCustomer = ErplyCustomer::where('erply_customer_id', $customerData['customerID'])->first();
+                    
+                    $shouldUpdate = true;
+                    if ($existingCustomer && isset($customerData['timeModified'])) {
+                        $erplyModifiedTime = Carbon::parse($customerData['timeModified']);
+                        $localModifiedTime = $existingCustomer->updated_at;
+                        
+                        // Only update if Erply record is newer
+                        $shouldUpdate = $erplyModifiedTime->gt($localModifiedTime);
+                    }
+
+                    if ($shouldUpdate) {
+                        // Insert or update customer
+                        $customer = ErplyCustomer::updateOrCreate(
+                            ['erply_customer_id' => $customerData['customerID']],
+                            [
+                                'name' => $fullName,
+                                'first_name' => $firstName ?: null,
+                                'last_name' => $lastName ?: null,
+                                'company_name' => $customerData['companyName'] ?? null,
+                                'email' => $customerData['email'] ?? null,
+                                'phone' => $customerData['phone'] ?? null,
+                                'mobile' => $customerData['mobile'] ?? null,
+                                'address' => $customerData['address'] ?? null,
+                                'city' => $customerData['city'] ?? null,
+                                'state' => $customerData['state'] ?? null,
+                                'post_code' => $customerData['postCode'] ?? null,
+                                'country' => $customerData['country'] ?? null,
+                                'sync_status' => 'pending',
+                                'raw_erply_data' => json_encode($customerData)
+                            ]
+                        );
+
+                        $syncedCount++;
+                    }
+
+                } catch (\Exception $e) {
+                    $errorCount++;
+                    Log::error('Failed to store customer', [
+                        'customer_id' => $customerData['customerID'] ?? 'unknown',
+                        'error' => $e->getMessage(),
+                        'customer_data' => $customerData
+                    ]);
+                }
+            }
+
+            // Mark sync as successful
+            $syncStatus->markSuccess($syncedCount);
+
+            Log::info('ERPLY Incremental Customer Sync Completed', [
+                'total_customers' => count($customers),
+                'synced_count' => $syncedCount,
+                'error_count' => $errorCount,
+                'changedSince' => $changedSince
+            ]);
+
+            return [
+                'total' => count($customers),
+                'synced' => $syncedCount,
+                'errors' => $errorCount,
+                'changedSince' => $changedSince
+            ];
+
+        } catch (\Exception $e) {
+            // Mark sync as failed
+            if (isset($syncStatus)) {
+                $syncStatus->markFailed($e->getMessage());
+            }
+
+            Log::error('ERPLY Incremental Customer Sync Failed', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            throw $e;
+        }
+    }
+
+    /**
+     * Get sync status for all entities
+     */
+    public function getSyncStatus(): array
+    {
+        try {
+            $customerStatus = SyncStatus::getOrCreate('customer');
+            $productStatus = SyncStatus::getOrCreate('product');
+
+            return [
+                'customers' => [
+                    'last_sync_date' => $customerStatus->last_sync_date,
+                    'last_sync_status' => $customerStatus->last_sync_status,
+                    'total_records_synced' => $customerStatus->total_records_synced,
+                    'needs_sync' => $customerStatus->needsSync(),
+                    'error_message' => $customerStatus->error_message
+                ],
+                'products' => [
+                    'last_sync_date' => $productStatus->last_sync_date,
+                    'last_sync_status' => $productStatus->last_sync_status,
+                    'total_records_synced' => $productStatus->total_records_synced,
+                    'needs_sync' => $productStatus->needsSync(),
+                    'error_message' => $productStatus->error_message
+                ]
+            ];
+        } catch (\Exception $e) {
+            Log::error('Failed to get sync status', [
+                'error' => $e->getMessage()
+            ]);
+            return [
                 'error' => $e->getMessage()
             ];
         }

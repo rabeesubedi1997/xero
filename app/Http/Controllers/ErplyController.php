@@ -342,4 +342,65 @@ class ErplyController extends Controller
             ], 500);
         }
     }
+
+    /**
+     * Incremental customer sync using changedSince parameter
+     */
+    public function syncCustomersIncremental(Request $request): JsonResponse
+    {
+        try {
+            // Cast debug query parameter to boolean
+            $debug = filter_var($request->query('debug', false), FILTER_VALIDATE_BOOLEAN);
+
+            // Optional: allow page & limit via query params
+            $page = (int) $request->query('page', 1);
+            $limit = (int) $request->query('limit', 100);
+
+            $result = $this->erplyService->syncCustomersIncremental($page, $limit, $debug);
+
+            return response()->json([
+                'success' => true,
+                'message' => $debug ? 'Incremental customer fetch (debug) completed' : 'Incremental customer sync completed',
+                'data' => $result
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to sync customers incrementally: ' . $e->getMessage(),
+                'error_details' => [
+                    'file' => $e->getFile(),
+                    'line' => $e->getLine(),
+                    'trace' => $e->getTraceAsString()
+                ]
+            ], 500);
+        }
+    }
+
+    /**
+     * Get sync status for all entities
+     */
+    public function getSyncStatus(): JsonResponse
+    {
+        try {
+            $result = $this->erplyService->getSyncStatus();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Sync status retrieved successfully',
+                'data' => $result
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to get sync status: ' . $e->getMessage(),
+                'error_details' => [
+                    'file' => $e->getFile(),
+                    'line' => $e->getLine(),
+                    'trace' => $e->getTraceAsString()
+                ]
+            ], 500);
+        }
+    }
 }
