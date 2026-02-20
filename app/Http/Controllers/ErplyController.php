@@ -357,6 +357,7 @@ class ErplyController extends Controller
             $limit = (int) $request->query('limit', 100);
 
             $result = $this->erplyService->syncCustomersIncremental($page, $limit, $debug);
+            dd($result);
 
             return response()->json([
                 'success' => true,
