@@ -7,6 +7,8 @@ use Carbon\Carbon;
 
 class SyncStatus extends Model
 {
+    protected $table = 'sync_status';
+    
     protected $fillable = [
         'entity_type',
         'last_sync_date',
