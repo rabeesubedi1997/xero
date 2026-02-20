@@ -379,6 +379,41 @@ class ErplyController extends Controller
     }
 
     /**
+     * Incremental product sync using changedSince parameter
+     */
+    public function syncProductsIncremental(Request $request): JsonResponse
+    {
+        try {
+            // Cast debug query parameter to boolean
+            $debug = filter_var($request->query('debug', false), FILTER_VALIDATE_BOOLEAN);
+
+            // Optional: allow page & limit via query params
+            $page = (int) $request->query('page', 1);
+            $limit = (int) $request->query('limit', 100);
+
+            // Use autoSync mode to automatically process products
+            $result = $this->erplyService->syncProductsIncremental($page, $limit, $debug);
+
+            return response()->json([
+                'success' => true,
+                'message' => $debug ? 'Incremental product fetch (debug) completed' : 'Incremental product sync completed',
+                'data' => $result
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to sync products incrementally: ' . $e->getMessage(),
+                'error_details' => [
+                    'file' => $e->getFile(),
+                    'line' => $e->getLine(),
+                    'trace' => $e->getTraceAsString()
+                ]
+            ], 500);
+        }
+    }
+
+    /**
      * Get sync status for all entities
      */
     public function getSyncStatus(): JsonResponse

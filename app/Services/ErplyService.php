@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\ErplyToken;
 use App\Models\ErplyCustomer;
+use App\Models\ErplyProduct;
 use App\Models\SyncStatus;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -362,6 +363,305 @@ class ErplyService
             'trace' => $e->getTraceAsString()
         ]);
         return [];
+    }
+}
+
+    /**
+     * Get products from Erply API with changedSince support
+     */
+    public function getProducts(int $page = 1, int $limit = 100, bool $debug = false, ?string $changedSince = null, bool $autoSync = false): array
+{
+    try {
+        Log::info('ERPLY: Getting products', [
+            'page' => $page,
+            'limit' => $limit,
+            'changedSince' => $changedSince,
+            'autoSync' => $autoSync
+        ]);
+
+        // If autoSync is enabled and no changedSince provided, get it from sync_status
+        if ($autoSync && !$changedSince) {
+            $syncStatus = SyncStatus::getOrCreate('product');
+            $changedSince = $syncStatus->getChangedSinceDate();
+            
+            Log::info('ERPLY: Using changedSince from sync_status for products', [
+                'changedSince' => $changedSince,
+                'last_sync_date' => $syncStatus->last_sync_date
+            ]);
+        }
+
+        // Ensure valid session
+        $sessionKey = $this->getValidToken();
+        if (!$sessionKey) {
+            Log::warning('ERPLY: No valid session, authenticating...');
+            $sessionKey = $this->authenticate();
+            if (!$sessionKey) {
+                Log::error('ERPLY: Authentication failed, cannot fetch products');
+                return [];
+            }
+        }
+
+        // Build request parameters
+        $params = [
+            'pageNo' => $page,           // Correct parameter
+            'recordsOnPage' => $limit    // Correct parameter
+        ];
+
+        // Add changedSince parameter if provided
+        if ($changedSince) {
+            $params['changedSince'] = $changedSince;
+        }
+
+        $result = $this->makeAuthenticatedRequest('getProducts', $params);
+
+        if ($result['success']) {
+            $products = $result['data'] ?? [];
+
+            Log::info('ERPLY Products Retrieved', [
+                'page' => $page,
+                'count' => count($products),
+                'records_total' => $result['response']['status']['recordsTotal'] ?? 0,
+                'records_in_response' => $result['response']['status']['recordsInResponse'] ?? 0,
+                'changedSince' => $changedSince
+            ]);
+
+            // If autoSync is enabled, process products immediately
+            if ($autoSync) {
+                $this->processProductsSync($products, $changedSince);
+            }
+
+            if ($debug) {
+                // Only show in debug mode
+                Log::info('Debug mode: products fetched', [
+                    'products' => $products
+                ]);
+            }
+
+            return $products;
+        }
+
+        Log::error('ERPLY Products API Error', [
+            'error' => $result['error'] ?? 'Unknown error',
+            'full_response' => $result
+        ]);
+
+        return [];
+
+    } catch (\Exception $e) {
+        Log::error('ERPLY Products Exception', [
+            'error' => $e->getMessage(),
+            'trace' => $e->getTraceAsString()
+        ]);
+        return [];
+    }
+}
+
+    /**
+     * Process products sync - insert/update products and update sync status
+     */
+    private function processProductsSync(array $products, ?string $changedSince): array
+{
+    try {
+        Log::info('ERPLY: Processing products sync', [
+            'product_count' => count($products),
+            'changedSince' => $changedSince
+        ]);
+
+        // Get or create sync status
+        $syncStatus = SyncStatus::getOrCreate('product');
+        $syncStatus->markInProgress();
+
+        $syncedCount = 0;
+        $updatedCount = 0;
+        $insertedCount = 0;
+        $errorCount = 0;
+        $lastRecordTimestamp = null;
+
+        foreach ($products as $productData) {
+            try {
+                $productID = $productData['productID'] ?? null;
+                if (!$productID) {
+                    Log::warning('Product missing productID', ['product_data' => $productData]);
+                    continue;
+                }
+
+                // Prepare product data
+                $productDataForDb = [
+                    'erply_product_id' => $productID,
+                    'name' => $productData['name'] ?? 'Unknown Product',
+                    'description' => $productData['description'] ?? null,
+                    'code' => $productData['code'] ?? null,
+                    'type' => $productData['type'] ?? 'simple',
+                    'price' => $productData['price'] ?? 0,
+                    'cost' => $productData['cost'] ?? 0,
+                    'vat_rate' => $productData['vatrate'] ?? 0,
+                    'active' => ($productData['active'] ?? 1) == 1,
+                    'sync_status' => 'pending',
+                    'raw_erply_data' => json_encode($productData)
+                ];
+
+                // Check if product exists
+                $existingProduct = ErplyProduct::where('erply_product_id', $productID)->first();
+
+                if ($existingProduct) {
+                    // Update existing product
+                    $existingProduct->update($productDataForDb);
+                    $updatedCount++;
+                    
+                    Log::info('ERPLY: Updated existing product', [
+                        'product_id' => $productID,
+                        'name' => $productData['name'] ?? 'Unknown Product'
+                    ]);
+                } else {
+                    // Insert new product
+                    ErplyProduct::create($productDataForDb);
+                    $insertedCount++;
+                    
+                    Log::info('ERPLY: Inserted new product', [
+                        'product_id' => $productID,
+                        'name' => $productData['name'] ?? 'Unknown Product'
+                    ]);
+                }
+
+                $syncedCount++;
+
+                // Track latest timestamp from this batch
+                if (isset($productData['timeModified'])) {
+                    $recordTimestamp = Carbon::parse($productData['timeModified']);
+                    if (!$lastRecordTimestamp || $recordTimestamp->gt($lastRecordTimestamp)) {
+                        $lastRecordTimestamp = $recordTimestamp;
+                    }
+                } elseif (isset($productData['timeAdded'])) {
+                    $recordTimestamp = Carbon::parse($productData['timeAdded']);
+                    if (!$lastRecordTimestamp || $recordTimestamp->gt($lastRecordTimestamp)) {
+                        $lastRecordTimestamp = $recordTimestamp;
+                    }
+                }
+
+            } catch (\Exception $e) {
+                $errorCount++;
+                Log::error('Failed to process product', [
+                    'product_id' => $productData['productID'] ?? 'unknown',
+                    'error' => $e->getMessage(),
+                    'product_data' => $productData
+                ]);
+            }
+        }
+
+        // Update sync status with timestamp of last processed record
+        $finalSyncDate = $lastRecordTimestamp ? $lastRecordTimestamp : Carbon::now();
+        $syncStatus->markSuccess($syncedCount);
+
+        // Update last_sync_date to timestamp of last processed record
+        $syncStatus->update(['last_sync_date' => $finalSyncDate]);
+
+        Log::info('ERPLY: Product sync processing completed', [
+            'total_products' => count($products),
+            'synced_count' => $syncedCount,
+            'updated_count' => $updatedCount,
+            'inserted_count' => $insertedCount,
+            'error_count' => $errorCount,
+            'final_sync_date' => $finalSyncDate->format('Y-m-d H:i:s'),
+            'changedSince' => $changedSince
+        ]);
+
+        return [
+            'total' => count($products),
+            'synced' => $syncedCount,
+            'updated' => $updatedCount,
+            'inserted' => $insertedCount,
+            'errors' => $errorCount,
+            'last_sync_date' => $finalSyncDate->format('Y-m-d H:i:s')
+        ];
+
+    } catch (\Exception $e) {
+        // Mark sync as failed
+        if (isset($syncStatus)) {
+            $syncStatus->markFailed($e->getMessage());
+        }
+
+        Log::error('ERPLY: Product sync processing failed', [
+            'error' => $e->getMessage(),
+            'trace' => $e->getTraceAsString()
+        ]);
+        
+        return [
+            'total' => count($products),
+            'synced' => 0,
+            'updated' => 0,
+            'inserted' => 0,
+            'errors' => count($products),
+            'error_message' => $e->getMessage()
+        ];
+    }
+}
+
+    /**
+     * Incremental product sync using changedSince parameter
+     */
+    public function syncProductsIncremental(int $page = 1, int $limit = 100, bool $debug = false): array
+{
+    try {
+        Log::info('Starting ERPLY incremental product sync', [
+            'page' => $page,
+            'limit' => $limit,
+            'debug' => $debug
+        ]);
+
+        // Get or create sync status
+        $syncStatus = SyncStatus::getOrCreate('product');
+        $syncStatus->markInProgress();
+
+        // Get changedSince date
+        $changedSince = $syncStatus->getChangedSinceDate();
+
+        Log::info('ERPLY: Using changedSince date for products', [
+            'changedSince' => $changedSince,
+            'last_sync_date' => $syncStatus->last_sync_date
+        ]);
+
+        // Fetch products with changedSince and autoSync
+        $products = $this->getProducts($page, $limit, $debug, $changedSince, true);
+
+        // Debug mode: just return fetched products
+        if ($debug) {
+            return [
+                'total' => count($products),
+                'debug' => true,
+                'changedSince' => $changedSince,
+                'products' => $products
+            ];
+        }
+
+        if (empty($products)) {
+            $syncStatus->markSuccess(0);
+            return [
+                'total' => 0,
+                'synced' => 0,
+                'errors' => 0,
+                'changedSince' => $changedSince
+            ];
+        }
+
+        // Products are already processed by getProducts with autoSync=true
+        return [
+            'total' => count($products),
+            'synced' => count($products),
+            'errors' => 0,
+            'changedSince' => $changedSince
+        ];
+
+    } catch (\Exception $e) {
+        // Mark sync as failed
+        if (isset($syncStatus)) {
+            $syncStatus->markFailed($e->getMessage());
+        }
+
+        Log::error('ERPLY Incremental Product Sync Failed', [
+            'error' => $e->getMessage(),
+            'trace' => $e->getTraceAsString()
+        ]);
+        throw $e;
     }
 }
 

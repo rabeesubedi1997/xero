@@ -257,6 +257,7 @@ Route::middleware('api')->group(function () {
         // ERPLY Customer Sync Routes
         Route::match(['GET', 'POST'], '/sync/customers', [ErplyController::class, 'syncCustomers']);
         Route::match(['GET', 'POST'], '/sync/customers-incremental', [ErplyController::class, 'syncCustomersIncremental']);
+        Route::match(['GET', 'POST'], '/sync/products-incremental', [ErplyController::class, 'syncProductsIncremental']);
         Route::post('/send/customers', [ErplyController::class, 'sendCustomersToErply']);
         Route::post('/sync/products', [ErplyController::class, 'syncProducts']);
         Route::post('/sync/full', [ErplyController::class, 'syncFull']);
